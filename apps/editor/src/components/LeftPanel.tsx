@@ -72,7 +72,7 @@ export function LeftPanel() {
         </button>
       </nav>
       {open && (
-        <div className="palette">
+        <div className={`palette${panel === "candles" ? " wide" : ""}`}>
           {panel === "tools" && <ToolsPanel />}
           {panel === "smc" && <SmcPanel />}
           {panel === "text" && <TextPanel />}

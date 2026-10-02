@@ -45,6 +45,8 @@ for d in (PROJECTS, RENDERS):
     d.mkdir(parents=True, exist_ok=True)
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
+PROGRESS_RE = re.compile(r"PROGRESS (\d+)/(\d+)")
+STAGE_RE = re.compile(r"STAGE (.+)$")
 WORKER = Path(__file__).with_name("worker.py")
 MAX_PIXELS = 3840 * 2160
 
@@ -119,6 +121,14 @@ LOCK = threading.Lock()
 WAKE = threading.Event()
 
 
+def _kill_tree(proc: subprocess.Popen) -> None:
+    # venv launchers on Windows spawn the real interpreter as a child: kill the whole tree
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True)
+    else:
+        proc.kill()
+
+
 def _run_job(job: Job) -> None:
     job.status = "running"
     job.message = "Rendering frames"
@@ -127,18 +137,23 @@ def _run_job(job: Job) -> None:
     cmd = [sys.executable, str(WORKER), str(job.dir / "plan.json"), str(job.dir / "options.json"), str(job.dir / "output.mp4")]
     log_lines: deque[str] = deque(maxlen=60)
     try:
-        job.proc = subprocess.Popen(cmd, cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+        # CREATE_NO_WINDOW: without a console the worker can fail DLL init (0xC0000142) on Windows
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        job.proc = subprocess.Popen(cmd, cwd=str(ROOT), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", creationflags=flags)
         assert job.proc.stdout is not None
         for line in job.proc.stdout:
             line = line.rstrip()
-            if line.startswith("PROGRESS "):
-                done, total = line.split()[1].split("/")
-                job.frame, job.total_frames = int(done), int(total)
+            # the engine's own carriage-return progress bar can prefix our markers on a line
+            m = PROGRESS_RE.search(line)
+            if m:
+                job.frame, job.total_frames = int(m.group(1)), int(m.group(2))
                 if job.frame >= job.total_frames:
                     job.message = "Encoding"
-            elif line.startswith("STAGE "):
-                job.message = line[6:]
-            elif line.strip():
+                continue
+            m = STAGE_RE.search(line)
+            if m:
+                job.message = m.group(1)
+            elif line.strip() and "█" not in line and "░" not in line:
                 log_lines.append(line)
         code = job.proc.wait()
         if job.cancel_requested:
@@ -221,7 +236,7 @@ def cancel(job_id: str):
         raise HTTPException(404, "job not found")
     job.cancel_requested = True
     if job.proc and job.proc.poll() is None:
-        job.proc.kill()
+        _kill_tree(job.proc)
     return job.to_dict()
 
 

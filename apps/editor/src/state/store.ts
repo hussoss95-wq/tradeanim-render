@@ -92,7 +92,8 @@ function stamp(p: Project): Project {
   });
 }
 
-export const useEditor = create<EditorState>((set, get) => ({
+const createEditorStore = () =>
+  create<EditorState>((set, get) => ({
   project: freeze(migrateProject({}), true),
   past: [],
   future: [],
@@ -253,6 +254,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   dismissToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));
+
+// Keep one store across hot reloads: re-creating it would swap the open project for an empty one.
+const g = globalThis as unknown as { __tradeanimEditor?: ReturnType<typeof createEditorStore> };
+export const useEditor = (g.__tradeanimEditor ??= createEditorStore());
 
 function pruneSelection(get: () => EditorState, set: (s: Partial<EditorState>) => void) {
   const { project, selection, candleSelection, keyframeSelection } = get();

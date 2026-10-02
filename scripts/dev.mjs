@@ -62,6 +62,7 @@ if (!args.has("--web-only")) {
       "--app-dir", path.join("services", "render-api"),
       "--host", "127.0.0.1", "--port", API_PORT,
       "--reload", "--reload-dir", path.join("services", "render-api"), "--reload-dir", "tradeanim",
+      "--timeout-graceful-shutdown", "3",
     ], { MPLBACKEND: "Agg", PYTHONUNBUFFERED: "1" });
   } else {
     console.warn(color("33", "[api] Python env unavailable — editor runs, MP4 export disabled."));

@@ -26,12 +26,12 @@ export const heading: ObjectDef = {
   shortcut: "T",
   defaults: () => ({
     style: { textColor: "#f8fafc", fontSize: 64, fontWeight: 800, shadow: 0.6 },
-    props: { text: "Liquidity Sweep", align: "center", accentWord: "", accentColor: GOLD },
+    props: { text: "Liquidity Sweep", align: "center" },
     frame: { x: 0.5, y: 0.14, w: 0.8, h: 0.1 },
     animIn: { preset: "cinematic", duration: 0.8 },
     animOut: { preset: "fade", duration: 0.4 },
   }),
-  fields: [textField, alignField, { key: "accentWord", label: "Accent word", type: "text" }, { key: "accentColor", label: "Accent colour", type: "color" }],
+  fields: [textField, alignField],
   compile: (o) => {
     const f = o.frame!;
     const align = prop(o, "align", "center") as "left" | "center" | "right";

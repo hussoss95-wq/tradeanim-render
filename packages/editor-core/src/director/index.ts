@@ -154,7 +154,7 @@ export function buildSweepScenario(brief: DirectorBrief): DirectorResult {
   while (retrace < n - 2 && (bear ? candles[retrace].h < gap.bottom : candles[retrace].l > gap.top)) retrace++;
 
   // --- titles
-  const title = createObject("heading", ctx, { start: 0.2, props: { text: `${bear ? "Bearish" : "Bullish"} Liquidity Sweep`, accentWord: "Sweep" } });
+  const title = createObject("heading", ctx, { start: 0.2, props: { text: `${bear ? "Bearish" : "Bullish"} Liquidity Sweep` } });
   title.duration = Math.max(2, tOf(e2) - 0.2);
   add(title);
   storyboard.push({ time: 0.2, beat: "Hook: title card while price builds the range" });
@@ -206,7 +206,7 @@ export function buildSweepScenario(brief: DirectorBrief): DirectorResult {
     storyboard.push({ time: tOf(final), beat: "Target: opposing liquidity reached" });
   }
 
-  const outro = createObject("heading", ctx, { start: Math.max(tOf(final) + 0.8, D - 3), props: { text: "Sweep → CISD → FVG", accentWord: "FVG" } });
+  const outro = createObject("heading", ctx, { start: Math.max(tOf(final) + 0.8, D - 3), props: { text: "Sweep → CISD → FVG" } });
   outro.frame = { x: 0.5, y: 0.14, w: 0.8, h: 0.1 };
   add(outro);
 

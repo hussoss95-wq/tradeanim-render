@@ -626,6 +626,9 @@ textarea.txt {
   overflow-y: auto;
   padding-bottom: 20px;
 }
+.palette.wide {
+  width: 300px;
+}
 .pal-head {
   padding: 10px 10px 6px;
 }

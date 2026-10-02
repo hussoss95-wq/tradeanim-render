@@ -15,6 +15,7 @@ import {
   makeCompileCtx,
   objectHandles,
   priceTicks,
+  restState,
   timeTicks,
   toScreenX,
   toScreenY,
@@ -99,7 +100,13 @@ export function drawStage(input: DrawInput): ObjectHit[] {
   if (s.showGrid) drawGrid(ctx, project, layout);
 
   const visibleObjects = project.objects.filter((o) => o.visible && trackVisible(project, o));
-  const evaluated = visibleObjects.map((o) => ({ o, st: evalAnim(o, t), prims: compileObject(o, cctx) }));
+  // While editing, a selected object that is hidden by its timing/animation is shown as a ghost.
+  const ghostSel = input.overlay?.showHandles && !input.clean ? new Set(input.overlay.selection) : null;
+  const evaluated = visibleObjects.map((o) => {
+    let st = evalAnim(o, t);
+    if (ghostSel?.has(o.id) && st.opacity < 0.35) st = { ...restState(), opacity: 0.35 };
+    return { o, st, prims: compileObject(o, cctx) };
+  });
 
   const hits: ObjectHit[] = [];
 
@@ -220,7 +227,7 @@ function drawAxes(ctx: CanvasRenderingContext2D, project: Project, t: number, la
   const { vp, plot, priceAxis, timeAxis, scale } = layout;
   const theme = project.theme;
   const dec = makeCompileCtx(project).decimals;
-  const fs = Math.max(9, 19 * scale);
+  const fs = Math.max(6, 19 * scale);
   ctx.save();
   ctx.font = `500 ${fs}px ${MONO}`;
   if (priceAxis) {

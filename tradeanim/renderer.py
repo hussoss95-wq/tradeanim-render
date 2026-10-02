@@ -225,6 +225,7 @@ class Renderer:
             "-pix_fmt", c.pixel_format,
             "-crf", str(c.crf),
             "-preset", c.preset,
+            "-movflags", "+faststart",
             output_path,
         ]
 
