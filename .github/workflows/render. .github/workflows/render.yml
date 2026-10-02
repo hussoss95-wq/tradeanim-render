@@ -1,0 +1,75 @@
+name: Render Tradeanim Full HD
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout render repository
+        uses: actions/checkout@v4
+
+      - name: Download original tradeanim
+        uses: actions/checkout@v4
+        with:
+          repository: ufvg/tradeanim
+          path: tradeanim-src
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        working-directory: tradeanim-src
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Render original showcase
+        working-directory: tradeanim-src
+        env:
+          MPLBACKEND: Agg
+        run: |
+          python examples/showcase.py
+
+      - name: Find rendered MP4
+        run: |
+          echo "Rendered files:"
+          find tradeanim-src -type f -name "*.mp4" -print
+
+          VIDEO="$(find tradeanim-src -type f -name '*.mp4' | head -n 1)"
+
+          if [ -z "$VIDEO" ]; then
+            echo "ERROR: No MP4 file was generated."
+            exit 1
+          fi
+
+          cp "$VIDEO" showcase_v3.mp4
+
+          echo "Video information:"
+          ffprobe -v error \
+            -show_entries stream=width,height,r_frame_rate \
+            -show_entries format=duration \
+            -of default=noprint_wrappers=1 \
+            showcase_v3.mp4
+
+      - name: Upload Full HD video
+        uses: actions/upload-artifact@v4
+        with:
+          name: tradeanim-showcase-fullhd
+          path: showcase_v3.mp4
+          if-no-files-found: error
+          retention-days: 7
