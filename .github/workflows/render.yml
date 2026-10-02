@@ -12,19 +12,17 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Checkout render repository
+      # The tradeanim library is vendored in this repository (see UPSTREAM.md),
+      # so a single checkout provides both the engine and the examples.
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Download original tradeanim
-        uses: actions/checkout@v4
-        with:
-          repository: ufvg/tradeanim
-          path: tradeanim-src
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
 
       - name: Install FFmpeg
         run: |
@@ -32,39 +30,33 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: Install Python dependencies
-        working-directory: tradeanim-src
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
 
-      - name: Render original showcase
-        working-directory: tradeanim-src
+      - name: Render showcase
         env:
           MPLBACKEND: Agg
         run: |
           python examples/showcase.py
 
-      - name: Find rendered MP4
+      - name: Verify rendered MP4
         run: |
-          echo "Rendered files:"
-          find tradeanim-src -type f -name "*.mp4" -print
+          VIDEO="showcase_v3.mp4"
 
-          VIDEO="$(find tradeanim-src -type f -name '*.mp4' | head -n 1)"
-
-          if [ -z "$VIDEO" ]; then
-            echo "ERROR: No MP4 file was generated."
+          if [ ! -s "$VIDEO" ]; then
+            echo "ERROR: $VIDEO was not generated."
+            find . -type f -name "*.mp4" -print
             exit 1
           fi
-
-          cp "$VIDEO" showcase_v3.mp4
 
           echo "Video information:"
           ffprobe -v error \
             -show_entries stream=width,height,r_frame_rate \
             -show_entries format=duration \
             -of default=noprint_wrappers=1 \
-            showcase_v3.mp4
+            "$VIDEO"
 
       - name: Upload Full HD video
         uses: actions/upload-artifact@v4
