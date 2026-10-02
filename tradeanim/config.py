@@ -228,3 +228,8 @@ class RenderConfig:
     candle_shadow_color: str = "#00000040"
     candle_bull_color_override: Optional[str] = None
     candle_bear_color_override: Optional[str] = None
+    # Matplotlib boxstyle for candle bodies. The rounded default pads in price
+    # units, which swamps low-priced instruments (FX); use "square,pad=0" there.
+    candle_body_style: str = "round,pad=0.04"
+    # Explicit ffmpeg binary; None = $TRADEANIM_FFMPEG, PATH, then imageio-ffmpeg.
+    ffmpeg_path: Optional[str] = None
