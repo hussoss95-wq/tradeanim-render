@@ -104,7 +104,7 @@ export function drawStage(input: DrawInput): ObjectHit[] {
   const ghostSel = input.overlay?.showHandles && !input.clean ? new Set(input.overlay.selection) : null;
   const evaluated = visibleObjects.map((o) => {
     let st = evalAnim(o, t);
-    if (ghostSel?.has(o.id) && st.opacity < 0.35) st = { ...restState(), opacity: 0.35 };
+    if (ghostSel?.has(o.id) && (st.opacity < 0.35 || st.progress < 0.25 || st.chars < 0.25 || st.scale < 0.3)) st = { ...restState(), opacity: 0.45 };
     return { o, st, prims: compileObject(o, cctx) };
   });
 

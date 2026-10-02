@@ -150,8 +150,11 @@ export function buildSweepScenario(brief: DirectorBrief): DirectorResult {
     bullish: !bear,
   };
   const ce = (gap.top + gap.bottom) / 2;
+  // retrace: first candle back into the gap; otherwise the strongest pullback shortly after it
+  const window1 = Math.min(n - 2, gap.i2 + 8);
   let retrace = gap.i2 + 1;
-  while (retrace < n - 2 && (bear ? candles[retrace].h < gap.bottom : candles[retrace].l > gap.top)) retrace++;
+  while (retrace <= window1 && (bear ? candles[retrace].h < gap.bottom : candles[retrace].l > gap.top)) retrace++;
+  if (retrace > window1) retrace = bear ? argMax(candles, gap.i2 + 1, window1, "h") : argMin(candles, gap.i2 + 1, window1, "l");
 
   // --- titles
   const title = createObject("heading", ctx, { start: 0.2, props: { text: `${bear ? "Bearish" : "Bullish"} Liquidity Sweep` } });
@@ -190,7 +193,10 @@ export function buildSweepScenario(brief: DirectorBrief): DirectorResult {
   }
 
   if (brief.include.position) {
-    const entry = brief.include.fvg ? ce : cisdPrice;
+    // enter where price actually traded: the CE, or the retrace extreme if it fell short of it
+    const touched = bear ? candles[retrace].h : candles[retrace].l;
+    const wanted = brief.include.fvg ? ce : cisdPrice;
+    const entry = bear ? Math.min(wanted, touched) : Math.max(wanted, touched);
     const sl = bear ? sweepPrice + (sweepPrice - entry) * 0.12 : sweepPrice - (entry - sweepPrice) * 0.12;
     const tp = bear ? candles[final].l : candles[final].h;
     const kind = bear ? "shortPosition" : "longPosition";

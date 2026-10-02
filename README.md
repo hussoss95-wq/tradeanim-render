@@ -22,6 +22,34 @@ pytest -q tests                         # fast checks
 MPLBACKEND=Agg python examples/showcase.py   # writes showcase_v3.mp4 (needs ffmpeg)
 ```
 
+## tradeanim studio (web editor)
+
+A motion-design editor for trading / SMC / ICT videos, rendered to MP4 by the
+Python engine in this repo.
+
+```bash
+npm install        # JS deps + creates .venv with the Python engine & render API
+npm run dev        # editor  -> http://localhost:3000
+                   # render API (FastAPI) -> http://127.0.0.1:8000 (proxied as /api)
+```
+
+Requirements: Node 18.18+, Python 3.9+. FFmpeg ships with `imageio-ffmpeg`,
+so no system install is needed. Other commands:
+
+| command | what |
+|---|---|
+| `npm test` | TS unit tests (vitest) + Python tests (engine, TS↔Python parity, API) |
+| `npm run typecheck` | TypeScript across packages and the editor |
+| `npm run plan -- --prompt "bearish sweep, 20 seconds" --out plan.json` | headless project → render plan |
+| `npm run setup:python` | (re)create the Python environment |
+| `npm run dev:api` / `npm run dev:web-only` | start one side only |
+
+Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
+[`docs/COMPETITIVE_FEATURE_MATRIX.md`](docs/COMPETITIVE_FEATURE_MATRIX.md),
+[`docs/CHARTANIMATOR_RESEARCH.md`](docs/CHARTANIMATOR_RESEARCH.md).
+Projects save to `workspace/projects/` and renders to `workspace/renders/`
+(both gitignored).
+
 Original work Copyright (c) 2026 ufvg, released under the MIT License (see
 [`LICENSE`](LICENSE)). The upstream README follows unchanged below.
 
