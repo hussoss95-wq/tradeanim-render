@@ -1,0 +1,32 @@
+{
+  "name": "tradeanim-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Web editor + render service for the tradeanim trading-video engine",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "postinstall": "node scripts/setup-python.mjs",
+    "dev": "node scripts/dev.mjs",
+    "setup:python": "node scripts/setup-python.mjs --force",
+    "dev:api": "node scripts/dev.mjs --api-only",
+    "dev:web-only": "node scripts/dev.mjs --web-only",
+    "build": "npm run build -w @tradeanim/editor",
+    "typecheck": "tsc -p packages/editor-core && tsc -p packages/project-schema && npm run typecheck -w @tradeanim/editor",
+    "test": "npm run test:js && npm run test:py",
+    "test:js": "vitest run",
+    "plan": "tsx packages/editor-core/cli/plan.ts",
+    "test:py": "node scripts/run-python.mjs -m pytest -q tests services/render-api/tests"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=18.18"
+  }
+}
