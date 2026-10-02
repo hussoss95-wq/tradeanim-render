@@ -1,3 +1,32 @@
+# tradeanim-render
+
+Maintained fork of [**ufvg/tradeanim**](https://github.com/ufvg/tradeanim) — a
+Manim-like Python library for rendering professional trading chart videos —
+used as the base for an automated Trading / SMC / ICT video engine.
+
+- Library source: [`tradeanim/`](tradeanim)
+- Showcase scene: [`examples/showcase.py`](examples/showcase.py) (sample data in `examples/data/`)
+- Smoke tests: [`tests/`](tests)
+- CI: `.github/workflows/tests.yml` (tests on every push/PR) and
+  `.github/workflows/render.yml` (renders the Full HD showcase on `main` /
+  manual dispatch and uploads `showcase_v3.mp4` as the
+  `tradeanim-showcase-fullhd` artifact)
+- Provenance, license and upstream sync notes: [`UPSTREAM.md`](UPSTREAM.md)
+
+### Local quick start
+
+```bash
+pip install -r requirements.txt
+pip install -e ".[dev]"
+pytest -q tests                         # fast checks
+MPLBACKEND=Agg python examples/showcase.py   # writes showcase_v3.mp4 (needs ffmpeg)
+```
+
+Original work Copyright (c) 2026 ufvg, released under the MIT License (see
+[`LICENSE`](LICENSE)). The upstream README follows unchanged below.
+
+---
+
 # tradeanim v0.2.0
 
 A **Manim-like animation library** for creating professional trading chart videos. Load OHLC data from CSV, animate candlesticks, add technical indicators, overlay ICT concepts, and export to MP4. created with AI assistance.

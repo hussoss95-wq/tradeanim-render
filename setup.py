@@ -11,6 +11,7 @@ setup(
         "matplotlib>=3.7",
         "numpy>=1.24",
         "pandas>=2.0",
+        "Pillow>=10.0",
     ],
     extras_require={
         "dev": ["pytest"],
