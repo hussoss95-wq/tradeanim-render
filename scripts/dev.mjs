@@ -1,4 +1,4 @@
-// One-command dev launcher: render API (FastAPI :8000) + editor (Next.js :3000).
+// One-command dev launcher for AlgoLiquid Studio: render API (FastAPI :8000) + editor (Next.js :3000).
 //   npm run dev              -> both
 //   npm run dev -- --web-only
 //   npm run dev -- --api-only
@@ -63,7 +63,7 @@ if (!args.has("--web-only")) {
       "--host", "127.0.0.1", "--port", API_PORT,
       "--reload", "--reload-dir", path.join("services", "render-api"), "--reload-dir", "tradeanim",
       "--timeout-graceful-shutdown", "3",
-    ], { MPLBACKEND: "Agg", PYTHONUNBUFFERED: "1" });
+    ], { APP_ENV: process.env.APP_ENV || "development", MPLBACKEND: "Agg", PYTHONUNBUFFERED: "1" });
   } else {
     console.warn(color("33", "[api] Python env unavailable — editor runs, MP4 export disabled."));
   }
@@ -71,12 +71,12 @@ if (!args.has("--web-only")) {
 
 if (!args.has("--api-only")) {
   const nextBin = path.join(ROOT, "node_modules", "next", "dist", "bin", "next");
-  start("web", "36", process.execPath, [nextBin, "dev", "-p", WEB_PORT], { RENDER_API_URL: `http://127.0.0.1:${API_PORT}` }, path.join(ROOT, "apps", "editor"));
+  start("web", "36", process.execPath, [nextBin, "dev", "-p", WEB_PORT], { NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || `http://localhost:${API_PORT}` }, path.join(ROOT, "apps", "editor"));
 }
 
 setTimeout(() => {
   console.log("");
-  console.log(color("32", `  ▶ tradeanim studio  →  http://localhost:${WEB_PORT}`));
+  console.log(color("32", `  ▶ AlgoLiquid Studio  →  http://localhost:${WEB_PORT}`));
   console.log(color("90", `    render API        →  http://127.0.0.1:${API_PORT}/api/health`));
   console.log("");
 }, 4000);

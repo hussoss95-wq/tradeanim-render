@@ -49,7 +49,9 @@ export function Stage() {
   const overlay = useRef<Overlay>({ selection: [], candleSelection: [], hoverId: null, crosshair: null, guides: [], marquee: null, ghost: null, showHandles: true, freeView: false });
   const pathDraft = useRef<WorldPoint[] | null>(null);
   const images = useRef(new Map<string, HTMLImageElement>());
-  const [cursor, setCursor] = useState("default");
+  // Pointer-driven cursor, tagged with the tool it was set for; falls back to the tool's cursor.
+  const [hoverCursor, setHoverCursor] = useState<{ tool: string; cursor: string } | null>(null);
+  const setCursor = (cursor: string) => setHoverCursor({ tool: editor().tool, cursor });
 
   const project = useEditor((s) => s.project);
   const selection = useEditor((s) => s.selection);
@@ -83,8 +85,10 @@ export function Stage() {
     if (tool !== "path") pathDraft.current = null;
     overlay.current.ghost = null;
     dirty.current = true;
-    setCursor(tool === "select" ? "default" : tool === "hand" ? "grab" : "crosshair");
   }, [tool]);
+
+  const toolCursor = tool === "select" ? "default" : tool === "hand" ? "grab" : "crosshair";
+  const cursor = hoverCursor && hoverCursor.tool === tool ? hoverCursor.cursor : toolCursor;
 
   /* ---------------------------------------------------------- render loop */
   useEffect(() => {
@@ -588,7 +592,6 @@ export function Stage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ---------------------------------------------------------- wheel zoom */
@@ -614,7 +617,6 @@ export function Stage() {
     };
     c.addEventListener("wheel", onWheel, { passive: false });
     return () => c.removeEventListener("wheel", onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onDoubleClick = (e: React.MouseEvent) => {

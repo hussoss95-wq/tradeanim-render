@@ -8,6 +8,7 @@ import { editor, useEditor } from "@/state/store";
 import { cancelJob, getJob, health, startRender, type ProjectSummary, type RenderJob } from "@/lib/api";
 import { deleteProject, downloadText, listProjects, openProject, importProjectJSON } from "@/lib/persistence";
 import { Select } from "./ui";
+import { API_URL } from "@/lib/config";
 
 function Modal({ title, onClose, children, width = 520 }: { title: string; onClose: () => void; children: React.ReactNode; width?: number }) {
   useEffect(() => {
@@ -97,11 +98,18 @@ function ExportDialog({ onClose }: { onClose: () => void }) {
           </>
         ) : api ? (
           <>
-            <CheckCircle2 size={14} /> Python render engine online · tradeanim {api.version} · FFmpeg {api.ffmpeg ? "ready" : "missing"}
+            <CheckCircle2 size={14} /> Render engine online · v{api.version} · FFmpeg {api.ffmpeg ? "ready" : "missing"}
           </>
         ) : (
           <>
-            <XCircle size={14} /> Render API offline. Start everything with <code>npm run dev</code> (it launches FastAPI on :8000).
+            <XCircle size={14} />
+            {process.env.NODE_ENV === "production" ? (
+              <>Render service unavailable — please try again in a moment.</>
+            ) : (
+              <>
+                Render API offline at <code>{API_URL || "/api"}</code>. Start everything with <code>npm run dev</code>.
+              </>
+            )}
           </>
         )}
       </div>

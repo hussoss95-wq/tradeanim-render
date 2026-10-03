@@ -617,7 +617,7 @@ function textBox(ctx: CanvasRenderingContext2D, p: TextPrim, env: Env): Rect {
   const h = lh * lines.length;
   const pad = (p.bg ? p.pad ?? 4 : 0) * s;
   let x = X(env, p, p.x) + (p.dx ?? 0) * s;
-  let y = Y(env, p, p.y) + (p.dy ?? 0) * s;
+  const y = Y(env, p, p.y) + (p.dy ?? 0) * s;
   if (p.pinRight) x = L.plot.left + L.plot.width - 2;
   const align = p.align ?? "left";
   const left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;

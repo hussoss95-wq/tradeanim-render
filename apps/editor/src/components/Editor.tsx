@@ -28,43 +28,50 @@ const TOOL_KEYS: Record<string, ToolId> = {
   p: "path",
 };
 
-export function Editor() {
-  const [ready, setReady] = useState(false);
-  const previewMode = useEditor((s) => s.previewMode);
-  const [tlHeight, setTlHeight] = useState(() => (typeof window === "undefined" ? 240 : Math.round(Math.min(300, Math.max(150, window.innerHeight * 0.3)))));
+const TIMELINE_HEIGHT_KEY = "tradeanim.ui.timeline";
 
-  // initial project: autosave → demo
-  useEffect(() => {
-    const saved = readAutosave();
-    editor().loadProject(saved ?? demoProject());
-    try {
-      const h = Number(localStorage.getItem("tradeanim.ui.timeline"));
-      if (h > 120) setTlHeight(h);
-    } catch {
-      /* storage blocked */
-    }
-    setReady(true);
-  }, []);
+let booted = false;
+/** Restore the autosaved project (or the demo) before the first render. Client-only. */
+export function bootstrapEditor() {
+  if (booted) return;
+  booted = true;
+  editor().loadProject(readAutosave() ?? demoProject());
+  // expose for debugging / automation (window.tradeanim)
+  (window as unknown as { tradeanim: unknown }).tradeanim = { editor, playback };
+}
+
+function initialTimelineHeight() {
+  try {
+    const h = Number(localStorage.getItem(TIMELINE_HEIGHT_KEY));
+    if (h > 120) return h;
+  } catch {
+    /* storage blocked */
+  }
+  return Math.round(Math.min(300, Math.max(150, window.innerHeight * 0.3)));
+}
+
+export function Editor() {
+  const previewMode = useEditor((s) => s.previewMode);
+  const [tlHeight, setTlHeight] = useState(initialTimelineHeight);
 
   useAutosave();
   usePlaybackLoop();
   useKeyboard();
   useAudioPreview();
 
-  // expose for debugging / automation (window.tradeanim)
-  useEffect(() => {
-    (window as unknown as { tradeanim: unknown }).tradeanim = { editor, playback };
-  }, []);
-
   const startResize = (e: React.PointerEvent) => {
     const y0 = e.clientY;
     const h0 = tlHeight;
-    const move = (ev: PointerEvent) => setTlHeight(Math.min(window.innerHeight - 260, Math.max(140, h0 - (ev.clientY - y0))));
+    let last = h0;
+    const move = (ev: PointerEvent) => {
+      last = Math.min(window.innerHeight - 260, Math.max(140, h0 - (ev.clientY - y0)));
+      setTlHeight(last);
+    };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       try {
-        localStorage.setItem("tradeanim.ui.timeline", String(Math.round(tlHeightRef.current)));
+        localStorage.setItem(TIMELINE_HEIGHT_KEY, String(Math.round(last)));
       } catch {
         /* ignore */
       }
@@ -72,10 +79,6 @@ export function Editor() {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const tlHeightRef = useRef(tlHeight);
-  tlHeightRef.current = tlHeight;
-
-  if (!ready) return <div className="boot">Loading editor…</div>;
 
   return (
     <div className={`app${previewMode ? " preview" : ""}`}>

@@ -153,7 +153,12 @@ export function ColorField({ value, onChange }: { value: string; onChange: (v: s
   const hex6 = /^#[0-9a-f]{6}/i.test(value) ? value.slice(0, 7) : "#ffffff";
   const alpha = /^#[0-9a-f]{8}$/i.test(value) ? value.slice(7) : "";
   const [text, setText] = useState(value);
-  useEffect(() => setText(value), [value]);
+  // re-sync the draft when the value changes from outside (React "derive from props" pattern)
+  const [synced, setSynced] = useState(value);
+  if (synced !== value) {
+    setSynced(value);
+    setText(value);
+  }
   return (
     <div className="color">
       <label className="swatch" style={{ background: value }}>

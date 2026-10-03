@@ -1,4 +1,4 @@
-/* tradeanim studio — dense, dark motion-design UI */
+/* AlgoLiquid Studio — dense, dark motion-design UI */
 :root {
   --bg0: #06080c;
   --bg1: #0c0f15;
@@ -176,6 +176,11 @@ code {
   font-weight: 800;
   letter-spacing: -0.01em;
   font-size: 13px;
+  white-space: nowrap;
+}
+.brand-name b {
+  color: var(--accent);
+  font-weight: 700;
 }
 .project-name {
   background: transparent;

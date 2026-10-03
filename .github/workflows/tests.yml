@@ -58,8 +58,14 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck
 
       - name: Unit tests
         run: npm run test:js
+
+      - name: Production build
+        run: npm run build

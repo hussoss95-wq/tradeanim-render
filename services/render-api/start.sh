@@ -6,13 +6,14 @@ set -eu
 cd "$(dirname "$0")/../.."
 export APP_ENV="${APP_ENV:-production}"
 export MPLBACKEND=Agg
+# read by uvicorn: trust X-Forwarded-* from the platform's load balancer
+export FORWARDED_ALLOW_IPS="${FORWARDED_ALLOW_IPS:-*}"
 exec python -m uvicorn app:app \
   --app-dir services/render-api \
   --host "${HOST:-0.0.0.0}" \
   --port "${PORT:-8000}" \
   --workers 1 \
   --proxy-headers \
-  --forwarded-allow-ips "${FORWARDED_ALLOW_IPS:-*}" \
   --timeout-graceful-shutdown 30 \
   --log-level "${LOG_LEVEL:-info}" \
   --no-server-header

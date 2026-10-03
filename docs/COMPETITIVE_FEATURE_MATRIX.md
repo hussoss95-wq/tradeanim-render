@@ -1,14 +1,14 @@
-# Competitive feature matrix — tradeanim studio vs ChartAnimator
+# Competitive feature matrix — AlgoLiquid Studio vs ChartAnimator
 
 ChartAnimator column: observed in its public editor on 2026-10-02 (Free plan;
-see `CHARTANIMATOR_RESEARCH.md`). tradeanim column: this branch
+see `CHARTANIMATOR_RESEARCH.md`). AlgoLiquid Studio column: this branch
 (`feature/web-editor`), phase 1.
 
 Legend: ✅ available · ◐ partial / basic · ✗ not available · 🔒 paid tier only · 🗓 planned (schema/architecture ready)
 
 ## Chart & data
 
-| Capability | ChartAnimator | tradeanim studio |
+| Capability | ChartAnimator | AlgoLiquid Studio |
 |---|---|---|
 | Candlestick rendering | ✅ (illustration-style, no axes) | ✅ canvas renderer with price + time scales |
 | Price scale / time scale | ✗ | ✅ instrument-aware decimals, session timestamps |
@@ -26,7 +26,7 @@ Legend: ✅ available · ◐ partial / basic · ✗ not available · 🔒 paid t
 
 ## Annotation tools
 
-| Capability | ChartAnimator | tradeanim studio |
+| Capability | ChartAnimator | AlgoLiquid Studio |
 |---|---|---|
 | Line / ray / horizontal line / arrow / path | ◐ line, path, arrow | ✅ trendline, ray, horizontal line, arrow, multi-point path |
 | Rectangle / zone / circle | ✅ zone, circle | ✅ rectangle, zone (extend right), ellipse |
@@ -43,7 +43,7 @@ Legend: ✅ available · ◐ partial / basic · ✗ not available · 🔒 paid t
 
 ## Timeline & animation
 
-| Capability | ChartAnimator | tradeanim studio |
+| Capability | ChartAnimator | AlgoLiquid Studio |
 |---|---|---|
 | Multi-track timeline, playhead scrubbing | ✅ | ✅ typed tracks: Camera, Candles, Drawings, SMC/ICT, Text, Media, Effects, Audio |
 | Drag clips / trim duration / snapping | ✅ | ✅ snaps to playhead, clip edges, markers, keyframes |
@@ -60,7 +60,7 @@ Legend: ✅ available · ◐ partial / basic · ✗ not available · 🔒 paid t
 
 ## Project & output
 
-| Capability | ChartAnimator | tradeanim studio |
+| Capability | ChartAnimator | AlgoLiquid Studio |
 |---|---|---|
 | Aspect ratios | ✅ 16:9, 9:16, 1:1, 4:5 | ✅ same, plus resolution presets 720p–4K and FPS |
 | Undo / redo | ✅ | ✅ command architecture, gesture-coalesced history |

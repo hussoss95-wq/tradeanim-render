@@ -1,4 +1,7 @@
-# tradeanim studio — architecture
+# AlgoLiquid Studio — architecture
+
+Product: **AlgoLiquid Studio** (studio.algoliquid.com). The rendering engine keeps its
+package name, `tradeanim`. Deployment topology: see [`DEPLOYMENT.md`](../DEPLOYMENT.md).
 
 ```
 apps/editor            Next.js 16 + React 19 web editor (http://localhost:3000)

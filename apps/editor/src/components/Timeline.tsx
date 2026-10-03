@@ -71,8 +71,6 @@ export function Timeline() {
     }));
   }, [project.objects, project.tracks]);
 
-  const xOf = (t: number) => HEAD_W + t * pps;
-
   /* --------------------------------------------------------- snapping */
   const snapTime = (t: number, exclude: Set<string>): number => {
     const p = editor().project;
@@ -99,6 +97,25 @@ export function Timeline() {
     let t = Math.max(0, Math.min(editor().project.settings.duration, x / pps));
     t = Math.round(t * fps) / fps;
     playback().setTime(t);
+  };
+
+  const clipPatch = (mode: ClipDrag["mode"], b: { start: number; duration: number }, dt: number, ex: Set<string>) => {
+    const fps = editor().project.settings.fps;
+    const q = (v: number) => Math.round(v * fps) / fps;
+    if (mode === "move") {
+      let start = Math.max(0, b.start + dt);
+      const s1 = snapTime(start, ex);
+      const s2 = snapTime(start + b.duration, ex) - b.duration;
+      start = s1 !== start ? s1 : s2 !== start ? s2 : start;
+      return { start: q(Math.max(0, start)) };
+    }
+    if (mode === "trimL") {
+      const end = b.start + b.duration;
+      const start = Math.min(end - 0.1, Math.max(0, snapTime(b.start + dt, ex)));
+      return { start: q(start), duration: q(end - start) };
+    }
+    const end = Math.max(b.start + 0.1, snapTime(b.start + b.duration + dt, ex));
+    return { duration: q(end - b.start) };
   };
 
   useEffect(() => {
@@ -148,24 +165,6 @@ export function Timeline() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pps]);
 
-  const clipPatch = (mode: ClipDrag["mode"], b: { start: number; duration: number }, dt: number, ex: Set<string>) => {
-    const fps = editor().project.settings.fps;
-    const q = (v: number) => Math.round(v * fps) / fps;
-    if (mode === "move") {
-      let start = Math.max(0, b.start + dt);
-      const s1 = snapTime(start, ex);
-      const s2 = snapTime(start + b.duration, ex) - b.duration;
-      start = s1 !== start ? s1 : s2 !== start ? s2 : start;
-      return { start: q(Math.max(0, start)) };
-    }
-    if (mode === "trimL") {
-      const end = b.start + b.duration;
-      const start = Math.min(end - 0.1, Math.max(0, snapTime(b.start + dt, ex)));
-      return { start: q(start), duration: q(end - start) };
-    }
-    const end = Math.max(b.start + 0.1, snapTime(b.start + b.duration + dt, ex));
-    return { duration: q(end - b.start) };
-  };
 
   const onClipDown = (e: React.PointerEvent, o: SceneObject | null) => {
     if (e.button !== 0) return;

@@ -22,23 +22,29 @@ pytest -q tests                         # fast checks
 MPLBACKEND=Agg python examples/showcase.py   # writes showcase_v3.mp4 (needs ffmpeg)
 ```
 
-## tradeanim studio (web editor)
+## AlgoLiquid Studio (web editor)
 
-A motion-design editor for trading / SMC / ICT videos, rendered to MP4 by the
-Python engine in this repo.
+**AlgoLiquid Studio** (https://studio.algoliquid.com) is a motion-design editor
+for trading / SMC / ICT videos, rendered to MP4 by the Python `tradeanim`
+engine in this repo. Production deployment: [`DEPLOYMENT.md`](DEPLOYMENT.md);
+configuration: [`.env.example`](.env.example).
 
 ```bash
 npm install        # JS deps + creates .venv with the Python engine & render API
 npm run dev        # editor  -> http://localhost:3000
-                   # render API (FastAPI) -> http://127.0.0.1:8000 (proxied as /api)
+                   # render API (FastAPI) -> http://localhost:8000 (NEXT_PUBLIC_API_URL)
 ```
 
-Requirements: Node 18.18+, Python 3.9+. FFmpeg ships with `imageio-ffmpeg`,
+Requirements: Node 20.9+, Python 3.9+. FFmpeg ships with `imageio-ffmpeg`,
 so no system install is needed. Other commands:
 
 | command | what |
 |---|---|
 | `npm test` | TS unit tests (vitest) + Python tests (engine, TS↔Python parity, API) |
+| `npm run lint` | ESLint (Next.js core-web-vitals + TypeScript rules) |
+| `npm run build` | production build of the editor |
+| `npm run verify` | lint + typecheck + all tests + production build |
+| `npm run start:web` / `npm run start:api` | run the production servers |
 | `npm run typecheck` | TypeScript across packages and the editor |
 | `npm run plan -- --prompt "bearish sweep, 20 seconds" --out plan.json` | headless project → render plan |
 | `npm run setup:python` | (re)create the Python environment |

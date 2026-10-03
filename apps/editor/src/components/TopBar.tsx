@@ -8,6 +8,7 @@ import { playback } from "@/state/playback";
 import { exportProjectJSON, importProjectJSON, saveProject } from "@/lib/persistence";
 import { NumberField } from "./ui";
 import { demoProject } from "@/state/demo";
+import { APP_NAME } from "@/lib/config";
 
 export function TopBar() {
   const name = useEditor((s) => s.project.name);
@@ -49,13 +50,15 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <div className="brand" title="tradeanim studio">
+      <div className="brand" title={APP_NAME}>
         <span className="brand-mark">
           <i />
           <i />
           <i />
         </span>
-        <span className="brand-name">tradeanim</span>
+        <span className="brand-name">
+          AlgoLiquid <b>Studio</b>
+        </span>
       </div>
       <div className="tb-menu" ref={menuRef}>
         <button className="tb-btn" onClick={() => setMenu(!menu)}>

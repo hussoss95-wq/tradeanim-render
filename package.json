@@ -1,8 +1,8 @@
 {
-  "name": "tradeanim-studio",
+  "name": "algoliquid-studio",
   "private": true,
   "version": "0.1.0",
-  "description": "Web editor + render service for the tradeanim trading-video engine",
+  "description": "AlgoLiquid Studio \u2014 web editor + render service for trading/SMC/ICT videos (tradeanim engine)",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -14,11 +14,15 @@
     "dev:api": "node scripts/dev.mjs --api-only",
     "dev:web-only": "node scripts/dev.mjs --web-only",
     "build": "npm run build -w @tradeanim/editor",
+    "start:web": "npm run start -w @tradeanim/editor",
+    "start:api": "node scripts/start-api.mjs",
+    "lint": "npm run lint -w @tradeanim/editor",
     "typecheck": "tsc -p packages/editor-core && tsc -p packages/project-schema && npm run typecheck -w @tradeanim/editor",
     "test": "npm run test:js && npm run test:py",
     "test:js": "vitest run",
     "plan": "tsx packages/editor-core/cli/plan.ts",
-    "test:py": "node scripts/run-python.mjs -m pytest -q tests services/render-api/tests"
+    "test:py": "node scripts/run-python.mjs -m pytest -q tests services/render-api/tests",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build"
   },
   "devDependencies": {
     "tsx": "^4.23.15",
@@ -27,6 +31,6 @@
     "vitest": "^5.0.3"
   },
   "engines": {
-    "node": ">=18.18"
+    "node": ">=20.9"
   }
 }
