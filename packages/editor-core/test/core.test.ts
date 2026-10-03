@@ -5,6 +5,7 @@ import {
   ALL_DEFS,
   applyCommand,
   buildSweepScenario,
+  buildMinimalExplainerScenario,
   cameraPreset,
   candleReveal,
   compileObject,
@@ -155,6 +156,16 @@ describe("director + render plan", () => {
     const b = parseBrief("Create a 30-second vertical video showing a bearish liquidity sweep, CISD confirmation and FVG entry.");
     expect(b).toMatchObject({ direction: "bearish", aspect: "9:16", duration: 30 });
     expect(b.include.cisd && b.include.fvg).toBe(true);
+    expect(b.style).toBe("cinematic");
+  });
+  it("recognizes the clean explainer style and builds it without chart chrome", () => {
+    const brief = parseBrief("Minimal educational video about waiting for candle closes on a clean white background, no grid, 30 seconds");
+    expect(brief).toMatchObject({ style: "minimalExplainer", aspect: "9:16", duration: 30 });
+    const p = buildMinimalExplainerScenario(brief).project;
+    expect(p.settings).toMatchObject({ showGrid: false, showPriceAxis: false, showTimeAxis: false });
+    expect(p.theme.background).toBe("#ffffff");
+    expect(p.objects.map((o) => o.kind)).toEqual(expect.arrayContaining(["heading", "caption", "circle", "hline", "shortPosition"]));
+    expect(validateProject(p)).toEqual([]);
   });
   it("builds a scene with structure detected from the candles", () => {
     const p = demo();
