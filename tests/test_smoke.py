@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 import tradeanim
+from tradeanim.renderer import resolve_ffmpeg
 from tradeanim import (
     EMA,
     SMA,
@@ -58,7 +59,7 @@ def test_showcase_is_importable():
     assert issubclass(module.ShowcaseV3, Scene)
 
 
-@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
+@pytest.mark.skipif(resolve_ffmpeg() is None, reason="ffmpeg not installed")
 def test_tiny_scene_renders_mp4(tmp_path):
     class Tiny(Scene):
         def construct(self):

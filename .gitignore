@@ -13,8 +13,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -30,3 +30,15 @@ output/
 media/
 .vscode/
 .idea/
+
+# web editor / monorepo
+node_modules/
+.next/
+*.tsbuildinfo
+next-env.d.ts
+workspace/
+
+# local environment overrides (never commit secrets)
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,9 @@
+{
+  "name": "@tradeanim/project-schema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned JSON project schema shared by the editor, render API and AI Director",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" }
+}

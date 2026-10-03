@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, Optional
 
 import matplotlib
 
@@ -31,6 +33,21 @@ from .elements import (
 
 if TYPE_CHECKING:
     from .scene import Scene
+
+
+def resolve_ffmpeg(explicit: Optional[str] = None) -> Optional[str]:
+    # explicit path -> $TRADEANIM_FFMPEG -> ffmpeg on PATH -> bundled imageio-ffmpeg binary
+    for candidate in (explicit, os.environ.get("TRADEANIM_FFMPEG")):
+        if candidate:
+            return candidate
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    try:
+        import imageio_ffmpeg  # optional dependency
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
 
 
 def _hex_to_rgba(hex_color: str) -> tuple:
@@ -184,7 +201,12 @@ class Renderer:
 
         return np.asarray(img)
 
-    def render_scene(self, scene: "Scene", output_path: str):
+    def render_scene(
+        self,
+        scene: "Scene",
+        output_path: str,
+        on_progress: Optional[Callable[[int, int], None]] = None,
+    ):
         self.setup()
         c = self.config
         total_frames = int(scene.total_duration * c.fps)
@@ -193,7 +215,7 @@ class Renderer:
             return
 
         ffmpeg_cmd = [
-            "ffmpeg", "-y",
+            resolve_ffmpeg(c.ffmpeg_path) or "ffmpeg", "-y",
             "-f", "rawvideo", "-vcodec", "rawvideo",
             "-s", f"{c.width}x{c.height}",
             "-pix_fmt", "rgb24",
@@ -203,6 +225,7 @@ class Renderer:
             "-pix_fmt", c.pixel_format,
             "-crf", str(c.crf),
             "-preset", c.preset,
+            "-movflags", "+faststart",
             output_path,
         ]
 
@@ -241,6 +264,8 @@ class Renderer:
 
             frame = self._post_process(frame)
             proc.stdin.write(frame.tobytes())
+            if on_progress is not None:
+                on_progress(frame_idx + 1, total_frames)
 
             if frame_idx % max(1, c.fps // 4) == 0 or frame_idx == total_frames - 1:
                 done = frame_idx + 1
@@ -336,7 +361,7 @@ class Renderer:
 
             bp = mpatches.FancyBboxPatch(
                 (x - half_w, body_bottom), c.candle_width, body_h,
-                boxstyle="round,pad=0.04",
+                boxstyle=c.candle_body_style,
             )
             body_patches.append(bp)
             fc = _hex_to_rgba(body_color)

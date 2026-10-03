@@ -1,0 +1,12 @@
+{
+  "name": "@tradeanim/editor-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Framework-agnostic editor engine: animation, camera, object registry (SMC/ICT), commands, render-plan compiler, AI Director contracts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@tradeanim/project-schema": "*"
+  }
+}
