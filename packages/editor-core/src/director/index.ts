@@ -13,6 +13,7 @@
  * tool documentation — without touching the editor.
  */
 import {
+  THEME_PRESETS,
   createEmptyProject,
   uid,
   type AspectRatio,
@@ -29,6 +30,7 @@ import { argMax, argMin, fairValueGaps } from "./analysis";
 
 export interface DirectorBrief {
   prompt: string;
+  style: DirectorStyle;
   direction: "bullish" | "bearish";
   aspect: AspectRatio;
   duration: number;
@@ -36,6 +38,8 @@ export interface DirectorBrief {
   include: { sweep: boolean; cisd: boolean; fvg: boolean; orderBlock: boolean; position: boolean; captions: boolean };
   seed: number;
 }
+
+export type DirectorStyle = "cinematic" | "minimalExplainer";
 
 export interface StoryBeat {
   time: number;
@@ -68,8 +72,9 @@ const SYMBOLS: Record<string, { base: number; height: number; tf: string }> = {
 
 export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {}): DirectorBrief {
   const p = prompt.toLowerCase();
+  const style: DirectorStyle = /minimal|explainer|clean|white background|no grid|reference|educational/.test(p) ? "minimalExplainer" : "cinematic";
   const direction = /bull|long|buy/.test(p) && !/bear/.test(p) ? "bullish" : "bearish";
-  const aspect: AspectRatio = /vertical|9:16|short|reel|tiktok|portrait/.test(p) ? "9:16" : /square|1:1/.test(p) ? "1:1" : /4:5/.test(p) ? "4:5" : "16:9";
+  const aspect: AspectRatio = /vertical|9:16|short|reel|tiktok|portrait/.test(p) ? "9:16" : /square|1:1/.test(p) ? "1:1" : /4:5/.test(p) ? "4:5" : style === "minimalExplainer" ? "9:16" : "16:9";
   const dm = p.match(/(\d{1,3})\s*-?\s*(s|sec|secs|second|seconds)\b/);
   const duration = dm ? Math.min(120, Math.max(8, Number(dm[1]))) : 20;
   const sm = prompt.toUpperCase().match(/\b(EURUSD|GBPUSD|XAUUSD|GOLD|BTCUSD|BTC|NQ|ES|US30)\b/);
@@ -77,6 +82,7 @@ export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {
   const mentionsAny = /fvg|fair value|cisd|order block|\bob\b|entry|sweep/.test(p);
   return {
     prompt,
+    style,
     direction,
     aspect,
     duration,
@@ -92,6 +98,151 @@ export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {
     seed: 11,
     ...overrides,
   };
+}
+
+/** Clean vertical educational edit: bold hooks, quick beats and a paper chart without grid chrome. */
+export function buildMinimalExplainerScenario(brief: DirectorBrief): DirectorResult {
+  const bear = brief.direction === "bearish";
+  const sym = SYMBOLS[brief.symbol] ?? SYMBOLS.EURUSD;
+  const D = brief.duration;
+  const project = createEmptyProject({ name: `Wait for the Close — ${brief.symbol}`, aspect: brief.aspect });
+  const { width, height } = ASPECT_PRESETS[brief.aspect];
+  project.settings = {
+    ...project.settings,
+    width,
+    height,
+    duration: D,
+    showGrid: false,
+    showPriceAxis: false,
+    showTimeAxis: false,
+  };
+  project.theme = { ...THEME_PRESETS.Paper };
+  project.chart.symbol = brief.symbol;
+  project.chart.timeframe = sym.tf;
+  project.chart.candles = generatePattern(bear ? "bearishSweep" : "bullishSweep", sym.base, sym.height, brief.seed + 17);
+  project.chart.start = 2.2;
+  project.chart.duration = D - 2.2;
+  project.chart.reveal = { mode: "sequential", duration: Math.max(5, D * 0.76), easing: "cubicOut" };
+
+  const candles = project.chart.candles;
+  const n = candles.length;
+  const at = (fraction: number) => Math.max(0, Math.min(n - 1, Math.round((n - 1) * fraction)));
+  const time = (fraction: number) => +(D * fraction).toFixed(2);
+  const ctx = makeCompileCtx(project);
+  const objects: SceneObject[] = [];
+  const storyboard: StoryBeat[] = [];
+  const add = (object: SceneObject) => {
+    object.duration = Math.max(0.45, Math.min(object.duration, D - object.start));
+    objects.push(object);
+    return object;
+  };
+  const paperText = (object: SceneObject, size = 52) => {
+    object.style.textColor = "#111827";
+    object.style.fontSize = size;
+    object.style.shadow = 0;
+    return object;
+  };
+  const title = (text: string, start: number, duration: number, y = 0.14, size = 54) => {
+    const object = paperText(createObject("heading", ctx, { start, duration, props: { text } }), size);
+    object.frame = { x: 0.5, y, w: 0.88, h: 0.12 };
+    object.animIn = { preset: "pop", duration: 0.42, delay: 0, easing: "backOut" };
+    object.animOut = { preset: "fade", duration: 0.25, delay: 0, easing: "cubicIn" };
+    return add(object);
+  };
+  const caption = (text: string, start: number, duration: number) => {
+    const object = paperText(createObject("caption", ctx, { start, duration, props: { text, bgOpacity: 0.9 } }), 34);
+    object.style.labelBg = "#ffffff";
+    object.frame = { x: 0.5, y: 0.87, w: 0.86, h: 0.08 };
+    object.animIn = { preset: "typewriter", duration: 0.55, delay: 0, easing: "linear" };
+    return add(object);
+  };
+
+  const hookEnd = time(0.12);
+  title("WHY DOES LIVE TRADING FEEL HARDER?", 0.15, hookEnd - 0.15, 0.18, 58);
+  caption("The chart is the same. Your decisions are not.", 0.55, hookEnd - 0.55);
+  storyboard.push({ time: 0.15, beat: "Hook: challenge the viewer with a bold question" });
+
+  const compareStart = time(0.12);
+  const compareEnd = time(0.29);
+  const backtest = title("BACKTEST", compareStart, compareEnd - compareStart, 0.12, 38);
+  backtest.frame = { x: 0.26, y: 0.12, w: 0.38, h: 0.08 };
+  backtest.style.textColor = "#2563eb";
+  const live = title("LIVE", compareStart + 0.18, compareEnd - compareStart - 0.18, 0.12, 38);
+  live.frame = { x: 0.74, y: 0.12, w: 0.38, h: 0.08 };
+  live.style.textColor = "#e5484d";
+  caption("Backtests show closed candles. Live markets tempt you to act early.", compareStart + 0.35, compareEnd - compareStart - 0.35);
+  storyboard.push({ time: compareStart, beat: "Contrast the calm backtest with the pressure of live execution" });
+
+  const setupStart = time(0.29);
+  const closeStart = time(0.48);
+  title("ONE RULE CHANGES EVERYTHING", setupStart, closeStart - setupStart, 0.13, 48);
+  const closeIndex = at(0.56);
+  const closePrice = candles[closeIndex].c;
+  const active = add(createObject("circle", ctx, {
+    a: { t: closeIndex - 1.2, p: candles[closeIndex].l },
+    b: { t: closeIndex + 1.2, p: candles[closeIndex].h },
+    start: setupStart + 0.45,
+    duration: closeStart - setupStart,
+  }));
+  active.style.stroke = "#2563eb";
+  active.style.strokeWidth = 4;
+  caption("Do not manage the idea while its signal candle is still forming.", setupStart + 0.45, closeStart - setupStart - 0.2);
+  storyboard.push({ time: setupStart, beat: "Circle the active candle and establish the single operating rule" });
+
+  const confirmStart = time(0.48);
+  const confirmEnd = time(0.66);
+  title("WAIT FOR THE CLOSE", confirmStart, confirmEnd - confirmStart, 0.14, 64).style.textColor = "#2563eb";
+  const closeLine = add(createObject("hline", ctx, {
+    a: { t: closeIndex, p: closePrice },
+    start: confirmStart + 0.25,
+    duration: confirmEnd - confirmStart,
+    props: { label: "CANDLE CLOSE", showPrice: false },
+  }));
+  closeLine.style.stroke = "#2563eb";
+  closeLine.style.textColor = "#2563eb";
+  closeLine.style.strokeWidth = 3;
+  caption("A close gives confirmation. Intrabar movement only gives noise.", confirmStart + 0.45, confirmEnd - confirmStart - 0.25);
+  storyboard.push({ time: confirmStart, beat: "Reveal the candle close as the decision point" });
+
+  const riskStart = time(0.66);
+  const riskEnd = time(0.84);
+  title("MOVING THE STOP BREAKS THE PLAN", riskStart, riskEnd - riskStart, 0.13, 46).style.textColor = "#e5484d";
+  const entryIndex = at(0.68);
+  const entry = candles[entryIndex].c;
+  const move = sym.height * 0.22;
+  const position = add(createObject(bear ? "shortPosition" : "longPosition", ctx, {
+    points: [
+      { t: entryIndex, p: entry },
+      { t: Math.min(n + 2, entryIndex + 11), p: bear ? entry - move : entry + move },
+      { t: Math.min(n + 2, entryIndex + 11), p: bear ? entry + move * 0.52 : entry - move * 0.52 },
+    ],
+    start: riskStart + 0.3,
+    duration: riskEnd - riskStart,
+    props: { showLabels: false },
+  }));
+  position.style.fillOpacity = 0.16;
+  caption("Set invalidation before entry. Let the candle finish before changing anything.", riskStart + 0.45, riskEnd - riskStart - 0.2);
+  storyboard.push({ time: riskStart, beat: "Show how emotional stop movement destroys a valid plan" });
+
+  const outroStart = time(0.84);
+  title("PLAN IT. WAIT. EXECUTE.", outroStart, D - outroStart, 0.16, 58);
+  caption("Cleaner decisions start at candle close.", outroStart + 0.45, D - outroStart - 0.45);
+  storyboard.push({ time: outroStart, beat: "Close with a memorable three-step trading rule" });
+
+  project.objects = objects;
+  const fit = fitCandles(candles);
+  const k = (t: number, state: CameraKeyframe["state"], easing: CameraKeyframe["easing"] = "cubicInOut"): CameraKeyframe => ({ id: uid("kf_"), time: +t.toFixed(2), state, easing, follow: { mode: "none" } });
+  project.camera.base = fit;
+  project.camera.keyframes = [
+    k(0, { ...fit, span: fit.span + 8 }),
+    k(compareStart, fitCandles(candles, 0, at(0.42), { rightPad: 5 })),
+    k(setupStart + 0.45, fitCandles(candles, at(0.25), closeIndex + 3, { rightPad: 4 }), "expoOut"),
+    k(confirmStart + 0.25, fitCandles(candles, closeIndex - 7, closeIndex + 5, { rightPad: 3 }), "expoOut"),
+    k(riskStart + 0.3, fitCandles(candles, entryIndex - 5, Math.min(n - 1, entryIndex + 12), { rightPad: 4 })),
+    k(outroStart, { ...fit, span: fit.span + 5 }),
+  ];
+  project.meta = { generator: "director:minimal-explainer", prompt: brief.prompt, storyboard };
+  return { project, storyboard, engine: "template:minimal-explainer" };
 }
 
 /** Deterministic liquidity sweep → CISD → FVG entry scene. */
@@ -243,6 +394,6 @@ export const templateDirector: DirectorEngine = {
   id: "template",
   label: "Template Director (offline)",
   async generate(brief) {
-    return buildSweepScenario(brief);
+    return brief.style === "minimalExplainer" ? buildMinimalExplainerScenario(brief) : buildSweepScenario(brief);
   },
 };
