@@ -169,6 +169,7 @@ describe("director + render plan", () => {
   });
   it("turns an Arabic backtest prompt into a topic-specific complete edit", () => {
     const brief = parseBrief("أنشئ فيديو عمودي 30 ثانية يشرح الباك تيست على 100 صفقة", { style: "minimalExplainer", language: "ar" });
+    expect(brief).toMatchObject({ aspect: "9:16", duration: 30, language: "ar" });
     const p = buildMinimalExplainerScenario(brief).project;
     const copy = p.objects.map((o) => String(o.props.text ?? "")).join(" ");
     expect(p.name).toContain("باك تيست");

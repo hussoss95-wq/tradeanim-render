@@ -82,10 +82,10 @@ const SYMBOLS: Record<string, { base: number; height: number; tf: string }> = {
 
 export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {}): DirectorBrief {
   const p = prompt.toLowerCase();
-  const style: DirectorStyle = /minimal|explainer|clean|white background|no grid|reference|educational/.test(p) ? "minimalExplainer" : "cinematic";
-  const direction = /bull|long|buy/.test(p) && !/bear/.test(p) ? "bullish" : "bearish";
-  const aspect: AspectRatio = /vertical|9:16|short|reel|tiktok|portrait/.test(p) ? "9:16" : /square|1:1/.test(p) ? "1:1" : /4:5/.test(p) ? "4:5" : style === "minimalExplainer" ? "9:16" : "16:9";
-  const dm = p.match(/(\d{1,3})\s*-?\s*(s|sec|secs|second|seconds)\b/);
+  const style: DirectorStyle = /minimal|explainer|clean|white background|no grid|reference|educational|مينيمال|تعليمي|نظيفة|بدون شبكة/.test(p) ? "minimalExplainer" : "cinematic";
+  const direction = /bull|long|buy|صاعد|صعود|شراء/.test(p) && !/bear|هابط|هبوط|بيع/.test(p) ? "bullish" : "bearish";
+  const aspect: AspectRatio = /vertical|9:16|short|reel|tiktok|portrait|عمودي|طولي/.test(p) ? "9:16" : /square|1:1|مربع/.test(p) ? "1:1" : /4:5/.test(p) ? "4:5" : style === "minimalExplainer" ? "9:16" : "16:9";
+  const dm = p.match(/(\d{1,3})\s*-?\s*(s|sec|secs|second|seconds|ثانية|ثواني)/);
   const duration = dm ? Math.min(120, Math.max(8, Number(dm[1]))) : 20;
   const sm = prompt.toUpperCase().match(/\b(EURUSD|GBPUSD|XAUUSD|GOLD|BTCUSD|BTC|NQ|ES|US30)\b/);
   const symbol = sm ? ({ GOLD: "XAUUSD", BTC: "BTCUSD" } as Record<string, string>)[sm[1]] ?? sm[1] : "EURUSD";
