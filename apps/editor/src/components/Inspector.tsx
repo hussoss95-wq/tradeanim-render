@@ -605,6 +605,21 @@ function ProjectInspector() {
       </div>
       <div className="ins-kind muted">Nothing selected — click an object, candle, clip or keyframe.</div>
       <Section title="Frame">
+        <Row label="Backdrop">
+          <Select
+            value={s.showGrid ? "grid" : s.watermark === "ALGO LIQUID" ? "brand" : "clean"}
+            options={[
+              { value: "clean", label: "Clean · no grid" },
+              { value: "brand", label: "AlgoLiquid · no grid" },
+              { value: "grid", label: "Chart grid" },
+            ]}
+            onChange={(value) => {
+              if (value === "grid") dispatch({ type: "settings/update", patch: { showGrid: true } });
+              else if (value === "brand") dispatch({ type: "settings/update", patch: { showGrid: false, watermark: "ALGO LIQUID" } });
+              else dispatch({ type: "settings/update", patch: { showGrid: false, watermark: s.watermark === "ALGO LIQUID" ? undefined : s.watermark } });
+            }}
+          />
+        </Row>
         <Row label="Price axis">
           <Toggle value={s.showPriceAxis} onChange={(v) => dispatch({ type: "settings/update", patch: { showPriceAxis: v } })} />
         </Row>
