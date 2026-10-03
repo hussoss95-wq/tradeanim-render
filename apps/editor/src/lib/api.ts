@@ -98,3 +98,30 @@ export async function apiSaveProject(p: Project): Promise<{ id: string; path: st
 export async function apiDeleteProject(id: string): Promise<void> {
   await fetch(apiUrl(`/api/projects/${encodeURIComponent(id)}`), { method: "DELETE" });
 }
+
+export type VoiceId = "ar-IQ-BasselNeural" | "ar-SA-ZariyahNeural" | "en-US-GuyNeural" | "en-US-JennyNeural";
+
+export async function generateVoice(text: string, voice: VoiceId): Promise<string> {
+  const r = await fetch(apiUrl("/api/voice"), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text, voice }),
+  });
+  if (!r.ok) {
+    let message = `Voice service error (${r.status})`;
+    try {
+      const body = await r.json();
+      if (body.detail) message = String(body.detail);
+    } catch {
+      // Keep the status message for non-JSON failures.
+    }
+    throw new Error(message);
+  }
+  const blob = await r.blob();
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read generated voice"));
+    reader.readAsDataURL(blob);
+  });
+}

@@ -46,6 +46,16 @@ def test_health(client):
     assert r.headers["x-request-id"]
 
 
+def test_voice_rejects_unknown_voice(client):
+    r = client.post("/api/voice", json={"text": "hello", "voice": "unknown"})
+    assert r.status_code == 400
+
+
+def test_voice_rejects_empty_text(client):
+    r = client.post("/api/voice", json={"text": "", "voice": "en-US-GuyNeural"})
+    assert r.status_code == 422
+
+
 def test_dev_cors_allows_localhost(client):
     r = client.options("/api/render", headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"})
     assert r.headers.get("access-control-allow-origin") == "http://localhost:3000"

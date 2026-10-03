@@ -167,6 +167,14 @@ describe("director + render plan", () => {
     expect(p.objects.map((o) => o.kind)).toEqual(expect.arrayContaining(["heading", "caption", "circle", "hline", "shortPosition"]));
     expect(validateProject(p)).toEqual([]);
   });
+  it("turns an Arabic backtest prompt into a topic-specific complete edit", () => {
+    const brief = parseBrief("أنشئ فيديو عمودي 30 ثانية يشرح الباك تيست على 100 صفقة", { style: "minimalExplainer", language: "ar" });
+    const p = buildMinimalExplainerScenario(brief).project;
+    const copy = p.objects.map((o) => String(o.props.text ?? "")).join(" ");
+    expect(p.name).toContain("باك تيست");
+    expect(copy).toContain("١٠٠ صفقة");
+    expect(validateProject(p)).toEqual([]);
+  });
   it("builds a scene with structure detected from the candles", () => {
     const p = demo();
     const kinds = p.objects.map((o) => o.kind);

@@ -2,6 +2,8 @@ fastapi>=0.110
 uvicorn[standard]>=0.29
 # Bundled static FFmpeg binary so MP4 export works without a system install.
 imageio-ffmpeg>=0.5
+# Neural voice-over generation used by AI Director.
+edge-tts>=7,<8
 # tests
 pytest>=8
 httpx>=0.27

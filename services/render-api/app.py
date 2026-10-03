@@ -34,7 +34,7 @@ from typing import Any, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -143,6 +143,45 @@ class RenderRequest(BaseModel):
     plan: dict[str, Any]
     options: RenderOptions = RenderOptions()
     project: Optional[dict[str, Any]] = None
+
+
+ALLOWED_VOICES = {
+    "ar-IQ-BasselNeural",
+    "ar-SA-ZariyahNeural",
+    "en-US-GuyNeural",
+    "en-US-JennyNeural",
+}
+
+
+class VoiceRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=2500)
+    voice: str
+
+
+@app.post("/api/voice")
+async def create_voice(req: VoiceRequest):
+    """Generate a compact MP3 voice-over for an AI Director project."""
+    if req.voice not in ALLOWED_VOICES:
+        raise HTTPException(400, "unsupported voice")
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(400, "text is required")
+    try:
+        import edge_tts
+
+        audio = bytearray()
+        communicator = edge_tts.Communicate(text, req.voice)
+        async for chunk in communicator.stream():
+            if chunk.get("type") == "audio":
+                audio.extend(chunk["data"])
+        if not audio:
+            raise RuntimeError("voice provider returned no audio")
+        return Response(content=bytes(audio), media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.warning("Voice generation failed: %s", exc)
+        raise HTTPException(503, "Voice generation is temporarily unavailable") from exc
 
 
 class Job:

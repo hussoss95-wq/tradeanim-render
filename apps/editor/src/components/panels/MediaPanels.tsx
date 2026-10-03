@@ -122,7 +122,7 @@ export function AudioPanel() {
         {!clips.length && <div className="muted pad">No audio clips.</div>}
       </div>
       <div className="pal-note">
-        Captions, recording and AI voice are planned for the next phase — the audio track and asset model are already in the project schema ({assets.filter((a) => a.type === "audio").length} audio assets).
+        AI Director can generate voice-over and transition SFX automatically. You can still add or replace any clip here ({assets.filter((a) => a.type === "audio").length} audio assets).
       </div>
     </>
   );
