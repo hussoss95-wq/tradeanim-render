@@ -9,7 +9,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { migrateProject } from "@tradeanim/project-schema";
-import { buildSweepScenario, compileRenderPlan, parseBrief } from "../src/index";
+import { buildMinimalExplainerScenario, buildSweepScenario, compileRenderPlan, parseBrief } from "../src/index";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -20,7 +20,10 @@ const projectPath = arg("project");
 const prompt = arg("prompt");
 let project;
 if (projectPath) project = migrateProject(JSON.parse(readFileSync(projectPath, "utf8")));
-else if (prompt) project = buildSweepScenario(parseBrief(prompt)).project;
+else if (prompt) {
+  const brief = parseBrief(prompt);
+  project = (brief.style === "minimalExplainer" ? buildMinimalExplainerScenario(brief) : buildSweepScenario(brief)).project;
+}
 else {
   console.error("usage: plan.ts (--project file.json | --prompt text) [--out plan.json] [--project-out project.json]");
   process.exit(2);
