@@ -26,7 +26,6 @@ RUN pip install --no-cache-dir -e . \
  && mkdir -p /data && chown app /data
 USER app
 
-VOLUME ["/data"]
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/api/health',timeout=4)"
 CMD ["sh", "services/render-api/start.sh"]
