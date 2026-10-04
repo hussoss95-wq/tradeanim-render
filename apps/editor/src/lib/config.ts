@@ -4,7 +4,7 @@
  */
 
 export const APP_NAME = "AlgoLiquid Studio";
-export const APP_DOMAIN = "studio.algoliquid.com";
+export const APP_DOMAIN = "studio.algo-liquid.com";
 
 /** Canonical URL of the editor itself. */
 export const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || `https://${APP_DOMAIN}`).replace(/\/+$/, "");

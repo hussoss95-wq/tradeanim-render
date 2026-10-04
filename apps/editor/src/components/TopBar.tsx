@@ -9,6 +9,7 @@ import { exportProjectJSON, importProjectJSON, saveProject } from "@/lib/persist
 import { NumberField } from "./ui";
 import { demoProject } from "@/state/demo";
 import { APP_NAME } from "@/lib/config";
+import { AccountButton } from "./AccountButton";
 
 export function TopBar() {
   const name = useEditor((s) => s.project.name);
@@ -150,6 +151,8 @@ export function TopBar() {
       </div>
 
       <div className="tb-spacer" />
+
+      <AccountButton />
 
       <button
         className={`tb-btn${previewMode ? " active" : ""}`}

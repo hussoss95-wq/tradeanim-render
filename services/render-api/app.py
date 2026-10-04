@@ -7,7 +7,7 @@ Bridges the web editor and the Python tradeanim engine:
   GET  /api/render/{id}       job status / progress
   POST /api/render/{id}/cancel
   GET  /api/renders/{id}.mp4  rendered video (Range requests supported)
-  GET/PUT/DELETE /api/projects[/{id}]   workspace project files (development only by default)
+  GET/PUT/DELETE /api/projects[/{id}]   authenticated cloud projects
 
 Configuration comes from environment variables (see settings.py / .env.example).
 
@@ -39,6 +39,20 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from settings import ROOT, load_settings
+from auth import (
+    CSRF_COOKIE,
+    SESSION_COOKIE,
+    Store,
+    clear_session_cookies,
+    current_user,
+    require_csrf,
+    require_user,
+    require_verified_user,
+    set_session_cookies,
+    validate_password,
+)
+from director_api import understand as understand_director_brief
+from mailer import send_action_email
 
 sys.path.insert(0, str(ROOT))
 
@@ -50,9 +64,8 @@ log = logging.getLogger("algoliquid.render_api")
 logging.basicConfig(level=getattr(logging, SETTINGS.log_level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 WORKSPACE = SETTINGS.workspace
-PROJECTS = WORKSPACE / "projects"
 RENDERS = WORKSPACE / "renders"
-for d in (PROJECTS, RENDERS):
+for d in (RENDERS,):
     d.mkdir(parents=True, exist_ok=True)
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -60,6 +73,7 @@ PROGRESS_RE = re.compile(r"PROGRESS (\d+)/(\d+)")
 STAGE_RE = re.compile(r"STAGE (.+)$")
 WORKER = Path(__file__).with_name("worker.py")
 STARTED_AT = time.time()
+STORE = Store(SETTINGS.auth_db)
 
 app = FastAPI(
     title=f"{SETTINGS.app_name} render API",
@@ -72,9 +86,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=SETTINGS.allowed_origins,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Range", "X-Request-ID"],
+    allow_headers=["Content-Type", "Range", "X-Request-ID", "X-CSRF-Token"],
     expose_headers=["Content-Disposition", "Content-Length", "Content-Range", "Accept-Ranges", "X-Request-ID"],
     max_age=600,
 )
@@ -93,6 +107,13 @@ async def request_context(request: Request, call_next):
     started = time.perf_counter()
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    if request.url.path.startswith("/api/auth"):
+        response.headers["Cache-Control"] = "no-store"
+    if SETTINGS.is_production:
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
     if request.url.path != "/api/health":
         log.info("%s %s -> %s (%.0f ms) [%s]", request.method, request.url.path, response.status_code, (time.perf_counter() - started) * 1000, request_id)
     return response
@@ -129,6 +150,194 @@ def _check_id(value: str) -> str:
     return value
 
 
+class WindowLimiter:
+    """Small single-instance limiter; production already runs one API worker."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.events: dict[str, deque[float]] = {}
+
+    def check(self, key: str, limit: int, seconds: int = 3600) -> None:
+        now = time.time()
+        with self.lock:
+            q = self.events.setdefault(key, deque())
+            while q and q[0] <= now - seconds:
+                q.popleft()
+            if len(q) >= limit:
+                raise HTTPException(429, "Usage limit reached; please try again later")
+            q.append(now)
+
+
+LIMITER = WindowLimiter()
+
+
+def _actor(request: Request, action: str, limit: int, mutation: bool = False):
+    user = current_user(request, STORE)
+    if SETTINGS.auth_required and not user:
+        raise HTTPException(401, "Sign in to continue")
+    if user and SETTINGS.email_verification_required and not user.verified:
+        raise HTTPException(403, "Verify your email to continue")
+    if user and mutation:
+        require_csrf(request, STORE)
+    identity = user.id if user else (request.client.host if request.client else "anonymous")
+    LIMITER.check(f"{action}:{identity}", limit)
+    return user
+
+
+# ------------------------------------------------------------------ accounts
+
+
+class Credentials(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=10, max_length=128)
+    name: str = Field("", max_length=80)
+
+
+def _user_body(user) -> dict[str, Any]:
+    return {"id": user.id, "email": user.email, "name": user.name, "verified": user.verified}
+
+
+def _send_account_action(user, kind: str) -> None:
+    ttl = 24 * 60 * 60 if kind == "verify" else 30 * 60
+    token = STORE.issue_action(user.id, kind, ttl)
+    send_action_email(SETTINGS, recipient=user.email, name=user.name, kind=kind, token=token)
+
+
+@app.post("/api/auth/register")
+def register(req: Credentials, request: Request):
+    LIMITER.check(f"register:{request.client.host if request.client else 'unknown'}", 8)
+    if SETTINGS.email_verification_required and not SETTINGS.email_configured:
+        raise HTTPException(503, "Account email is not configured")
+    validate_password(req.password)
+    user = STORE.create_user(req.email, req.name, req.password)
+    try:
+        _send_account_action(user, "verify")
+    except Exception as exc:
+        STORE.purge_user(user.id)
+        log.exception("Could not send registration verification email")
+        raise HTTPException(503, "Could not send verification email; please try again") from exc
+    token, csrf = STORE.create_session(user.id, SETTINGS.session_ttl_seconds)
+    response = JSONResponse({"user": _user_body(user), "csrfToken": csrf}, status_code=201)
+    set_session_cookies(response, token, csrf, SETTINGS.is_production, SETTINGS.session_ttl_seconds)
+    return response
+
+
+@app.post("/api/auth/login")
+def login(req: Credentials, request: Request):
+    LIMITER.check(f"login:{request.client.host if request.client else 'unknown'}", 20)
+    user = STORE.authenticate(req.email, req.password)
+    if not user:
+        raise HTTPException(401, "Email or password is incorrect")
+    token, csrf = STORE.create_session(user.id, SETTINGS.session_ttl_seconds)
+    response = JSONResponse({"user": _user_body(user), "csrfToken": csrf})
+    set_session_cookies(response, token, csrf, SETTINGS.is_production, SETTINGS.session_ttl_seconds)
+    return response
+
+
+@app.get("/api/auth/me")
+def me(request: Request):
+    user = current_user(request, STORE)
+    if not user:
+        raise HTTPException(401, "Not signed in")
+    return {"user": _user_body(user), "csrfToken": request.cookies.get(CSRF_COOKIE, "")}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request):
+    user = current_user(request, STORE)
+    if user:
+        require_csrf(request, STORE)
+    STORE.revoke(request.cookies.get(SESSION_COOKIE, ""))
+    response = JSONResponse({"ok": True})
+    clear_session_cookies(response, SETTINGS.is_production)
+    return response
+
+
+class EmailRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+class TokenRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+
+
+class ResetPasswordRequest(TokenRequest):
+    password: str = Field(min_length=10, max_length=128)
+
+
+class ChangePasswordRequest(BaseModel):
+    currentPassword: str = Field(min_length=1, max_length=128)
+    newPassword: str = Field(min_length=10, max_length=128)
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
+
+
+@app.post("/api/auth/email/verify/request")
+def request_verification(request: Request):
+    user = require_user(request, STORE)
+    require_csrf(request, STORE)
+    LIMITER.check(f"verify-email:{user.id}", 5)
+    if user.verified:
+        return {"ok": True, "alreadyVerified": True}
+    if SETTINGS.email_verification_required and not SETTINGS.email_configured:
+        raise HTTPException(503, "Account email is not configured")
+    _send_account_action(user, "verify")
+    return {"ok": True}
+
+
+@app.post("/api/auth/email/verify/confirm")
+def confirm_verification(req: TokenRequest):
+    user = STORE.consume_verification(req.token)
+    if not user:
+        raise HTTPException(400, "Verification link is invalid or expired")
+    return {"ok": True}
+
+
+@app.post("/api/auth/password/forgot")
+def forgot_password(req: EmailRequest, request: Request):
+    LIMITER.check(f"forgot:{request.client.host if request.client else 'unknown'}", 8)
+    user = STORE.user_by_email(req.email)
+    if user:
+        try:
+            _send_account_action(user, "reset")
+        except Exception:
+            log.exception("Could not send password reset email")
+    # The response is intentionally identical for existing and unknown emails.
+    return {"ok": True, "message": "If that account exists, a reset link has been sent"}
+
+
+@app.post("/api/auth/password/reset")
+def reset_password(req: ResetPasswordRequest):
+    validate_password(req.password)
+    if not STORE.reset_password(req.token, req.password):
+        raise HTTPException(400, "Reset link is invalid or expired")
+    return {"ok": True}
+
+
+@app.post("/api/auth/password/change")
+def change_password(req: ChangePasswordRequest, request: Request):
+    user = require_user(request, STORE)
+    require_csrf(request, STORE)
+    if not STORE.change_password(user.id, req.currentPassword, req.newPassword):
+        raise HTTPException(401, "Current password is incorrect")
+    response = JSONResponse({"ok": True})
+    clear_session_cookies(response, SETTINGS.is_production)
+    return response
+
+
+@app.delete("/api/auth/account")
+def delete_account(req: DeleteAccountRequest, request: Request):
+    user = require_user(request, STORE)
+    require_csrf(request, STORE)
+    if not STORE.delete_account(user.id, req.password):
+        raise HTTPException(401, "Password is incorrect")
+    response = JSONResponse({"ok": True})
+    clear_session_cookies(response, SETTINGS.is_production)
+    return response
+
+
 # ------------------------------------------------------------------ jobs
 
 
@@ -159,8 +368,9 @@ class VoiceRequest(BaseModel):
 
 
 @app.post("/api/voice")
-async def create_voice(req: VoiceRequest):
+async def create_voice(req: VoiceRequest, request: Request):
     """Generate a compact MP3 voice-over for an AI Director project."""
+    _actor(request, "voice", SETTINGS.voice_per_hour, mutation=True)
     if req.voice not in ALLOWED_VOICES:
         raise HTTPException(400, "unsupported voice")
     text = req.text.strip()
@@ -184,8 +394,19 @@ async def create_voice(req: VoiceRequest):
         raise HTTPException(503, "Voice generation is temporarily unavailable") from exc
 
 
+class DirectorRequest(BaseModel):
+    prompt: str = Field(min_length=3, max_length=4000)
+    overrides: dict[str, Any] = Field(default_factory=dict)
+
+
+@app.post("/api/director/understand")
+async def director_understand(req: DirectorRequest, request: Request):
+    _actor(request, "director", SETTINGS.director_per_hour, mutation=True)
+    return await understand_director_brief(req.prompt.strip(), req.overrides)
+
+
 class Job:
-    def __init__(self, job_id: str, total_frames: int):
+    def __init__(self, job_id: str, total_frames: int, owner_id: str | None = None):
         self.id = job_id
         self.status = "queued"
         self.frame = 0
@@ -197,6 +418,7 @@ class Job:
         self.finished_at: Optional[float] = None
         self.proc: Optional[subprocess.Popen] = None
         self.cancel_requested = False
+        self.owner_id = owner_id
 
     @property
     def dir(self) -> Path:
@@ -337,7 +559,8 @@ def _workspace_writable() -> bool:
 def health():
     ffmpeg = resolve_ffmpeg()
     writable = _workspace_writable()
-    ok = bool(ffmpeg) and writable
+    email_ready = not SETTINGS.email_verification_required or SETTINGS.email_configured
+    ok = bool(ffmpeg) and writable and email_ready
     body = {
         "ok": ok,
         "service": f"{SETTINGS.app_name} render API",
@@ -345,7 +568,10 @@ def health():
         "version": tradeanim.__version__,
         "ffmpeg": bool(ffmpeg) if SETTINGS.is_production else ffmpeg,
         "workspaceWritable": writable,
-        "projectStorage": SETTINGS.project_storage,
+        "projectStorage": True,
+        "authentication": SETTINGS.auth_required,
+        "emailVerification": SETTINGS.email_verification_required,
+        "emailReady": email_ready,
         "queued": len(QUEUE),
         "running": sum(1 for j in JOBS.values() if j.status == "running"),
         "uptime": round(time.time() - STARTED_AT, 1),
@@ -358,7 +584,8 @@ def health():
 
 
 @app.post("/api/render")
-def start_render(req: RenderRequest):
+def start_render(req: RenderRequest, request: Request):
+    user = _actor(request, "render", SETTINGS.render_per_hour, mutation=True)
     plan = req.plan
     if plan.get("format") != "tradeanim.renderplan":
         raise HTTPException(422, "body.plan must be a render plan (compileRenderPlan output)")
@@ -376,10 +603,12 @@ def start_render(req: RenderRequest):
     with LOCK:
         if len(QUEUE) >= SETTINGS.max_queue:
             raise HTTPException(429, "Render queue is full, please retry shortly")
-    job = Job(secrets.token_hex(SETTINGS.job_id_bytes), int(duration * o.fps))
+    job = Job(secrets.token_hex(SETTINGS.job_id_bytes), int(duration * o.fps), user.id if user else None)
     job.dir.mkdir(parents=True, exist_ok=True)
     (job.dir / "plan.json").write_text(json.dumps(plan), encoding="utf-8")
     (job.dir / "options.json").write_text(o.model_dump_json(), encoding="utf-8")
+    if user:
+        (job.dir / "owner.txt").write_text(user.id, encoding="utf-8")
     if req.project is not None and not SETTINGS.is_production:
         (job.dir / "project.json").write_text(json.dumps(req.project), encoding="utf-8")
     with LOCK:
@@ -392,17 +621,23 @@ def start_render(req: RenderRequest):
 
 
 @app.get("/api/render/{job_id}")
-def job_status(job_id: str):
+def job_status(job_id: str, request: Request):
+    user = _actor(request, "status", 600)
     job = JOBS.get(_check_id(job_id))
     if not job:
+        raise HTTPException(404, "job not found")
+    if job.owner_id and (not user or job.owner_id != user.id):
         raise HTTPException(404, "job not found")
     return job.to_dict()
 
 
 @app.post("/api/render/{job_id}/cancel")
-def cancel(job_id: str):
+def cancel(job_id: str, request: Request):
+    user = _actor(request, "cancel", 120, mutation=True)
     job = JOBS.get(_check_id(job_id))
     if not job:
+        raise HTTPException(404, "job not found")
+    if job.owner_id and (not user or job.owner_id != user.id):
         raise HTTPException(404, "job not found")
     job.cancel_requested = True
     if job.proc and job.proc.poll() is None:
@@ -412,7 +647,15 @@ def cancel(job_id: str):
 
 @app.get("/api/renders/{job_id}.mp4")
 def video(job_id: str, request: Request):
-    path = RENDERS / _check_id(job_id) / "output.mp4"
+    user = _actor(request, "download", 300)
+    checked_id = _check_id(job_id)
+    job = JOBS.get(checked_id)
+    if job and job.owner_id and (not user or job.owner_id != user.id):
+        raise HTTPException(404, "video not found")
+    owner_path = RENDERS / checked_id / "owner.txt"
+    if owner_path.exists() and (not user or owner_path.read_text(encoding="utf-8") != user.id):
+        raise HTTPException(404, "video not found")
+    path = RENDERS / checked_id / "output.mp4"
     if not path.exists():
         raise HTTPException(404, "video not found")
     download = "download" in request.query_params
@@ -424,40 +667,25 @@ def video(job_id: str, request: Request):
     )
 
 
-# ------------------------------------------------------------------ projects
-
-
-def _require_storage() -> None:
-    if not SETTINGS.project_storage:
-        raise HTTPException(404, "server-side project storage is disabled")
-
-
 @app.get("/api/projects")
-def list_projects():
-    _require_storage()
-    out = []
-    for f in sorted(PROJECTS.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
-        try:
-            doc = json.loads(f.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        s = doc.get("settings", {})
-        out.append({"id": f.stem, "name": doc.get("name", f.stem), "updatedAt": doc.get("updatedAt", ""), "aspect": s.get("aspect"), "duration": s.get("duration")})
-    return out
+def list_projects(request: Request):
+    user = require_verified_user(request, STORE, SETTINGS.email_verification_required)
+    return STORE.list_projects(user.id)
 
 
 @app.get("/api/projects/{project_id}")
-def get_project(project_id: str):
-    _require_storage()
-    path = PROJECTS / f"{_check_id(project_id)}.json"
-    if not path.exists():
+def get_project(project_id: str, request: Request):
+    user = require_verified_user(request, STORE, SETTINGS.email_verification_required)
+    doc = STORE.get_project(user.id, _check_id(project_id))
+    if doc is None:
         raise HTTPException(404, "project not found")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return doc
 
 
 @app.put("/api/projects/{project_id}")
 async def save_project(project_id: str, request: Request):
-    _require_storage()
+    user = require_verified_user(request, STORE, SETTINGS.email_verification_required)
+    require_csrf(request, STORE)
     _check_id(project_id)
     try:
         doc = await request.json()
@@ -465,20 +693,18 @@ async def save_project(project_id: str, request: Request):
         raise HTTPException(422, "body must be JSON")
     if not isinstance(doc, dict) or doc.get("schema") != "tradeanim.project":
         raise HTTPException(422, "not a project document")
-    path = PROJECTS / f"{project_id}.json"
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(doc, indent=1), encoding="utf-8")
-    tmp.replace(path)
-    return {"id": project_id, "path": f"workspace/projects/{project_id}.json"}
+    if doc.get("id") != project_id:
+        raise HTTPException(422, "project id does not match URL")
+    STORE.save_project(user.id, project_id, doc)
+    return {"id": project_id, "path": "cloud"}
 
 
 @app.delete("/api/projects/{project_id}")
-def delete_project(project_id: str):
-    _require_storage()
-    path = PROJECTS / f"{_check_id(project_id)}.json"
-    if path.exists():
-        path.unlink()
+def delete_project(project_id: str, request: Request):
+    user = require_verified_user(request, STORE, SETTINGS.email_verification_required)
+    require_csrf(request, STORE)
+    STORE.delete_project(user.id, _check_id(project_id))
     return {"ok": True}
 
 
-log.info("%s render API ready (env=%s, origins=%s, workspace=%s, project storage=%s)", SETTINGS.app_name, SETTINGS.env, SETTINGS.allowed_origins, WORKSPACE, SETTINGS.project_storage)
+log.info("%s render API ready (env=%s, origins=%s, workspace=%s, auth=%s)", SETTINGS.app_name, SETTINGS.env, SETTINGS.allowed_origins, WORKSPACE, SETTINGS.auth_required)

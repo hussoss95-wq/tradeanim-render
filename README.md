@@ -10,7 +10,8 @@ used as the base for an automated Trading / SMC / ICT video engine.
 - CI: `.github/workflows/tests.yml` (tests on every push/PR) and
   `.github/workflows/render.yml` (renders the Full HD showcase on `main` /
   manual dispatch and uploads `showcase_v3.mp4` as the
-  `tradeanim-showcase-fullhd` artifact)
+  `tradeanim-showcase-fullhd` artifact). CodeQL and Dependabot continuously
+  check application code, dependencies and GitHub Actions.
 - Provenance, license and upstream sync notes: [`UPSTREAM.md`](UPSTREAM.md)
 
 ### Local quick start
@@ -24,7 +25,7 @@ MPLBACKEND=Agg python examples/showcase.py   # writes showcase_v3.mp4 (needs ffm
 
 ## AlgoLiquid Studio (web editor)
 
-**AlgoLiquid Studio** (https://studio.algoliquid.com) is a motion-design editor
+**AlgoLiquid Studio** (https://studio.algo-liquid.com) is a motion-design editor
 for trading / SMC / ICT videos, rendered to MP4 by the Python `tradeanim`
 engine in this repo. Production deployment: [`DEPLOYMENT.md`](DEPLOYMENT.md);
 configuration: [`.env.example`](.env.example).
@@ -53,8 +54,9 @@ so no system install is needed. Other commands:
 Docs: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md),
 [`docs/COMPETITIVE_FEATURE_MATRIX.md`](docs/COMPETITIVE_FEATURE_MATRIX.md),
 [`docs/CHARTANIMATOR_RESEARCH.md`](docs/CHARTANIMATOR_RESEARCH.md).
-Projects save to `workspace/projects/` and renders to `workspace/renders/`
-(both gitignored).
+Accounts and per-user cloud projects save to `workspace/studio.db`; temporary
+renders save to `workspace/renders/` (both gitignored). Browser autosave remains
+available when signed out or offline.
 
 Original work Copyright (c) 2026 ufvg, released under the MIT License (see
 [`LICENSE`](LICENSE)). The upstream README follows unchanged below.

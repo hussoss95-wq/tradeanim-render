@@ -14,7 +14,11 @@ PLAN = json.loads((ROOT / "tests" / "fixtures" / "parity.json").read_text(encodi
 
 def make_client(tmp_path, monkeypatch, **env):
     monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path))
-    for k in ("APP_ENV", "ALLOWED_ORIGINS", "PROJECT_STORAGE_ENABLED", "MAX_RENDER_SECONDS", "MAX_REQUEST_MB"):
+    for k in (
+        "APP_ENV", "ALLOWED_ORIGINS", "AUTH_REQUIRED", "AUTH_DB_PATH", "OPENAI_API_KEY",
+        "EMAIL_VERIFICATION_REQUIRED", "SMTP_HOST", "SMTP_FROM", "SMTP_USER", "SMTP_PASSWORD",
+        "MAX_RENDER_SECONDS", "MAX_REQUEST_MB",
+    ):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
@@ -26,6 +30,16 @@ def make_client(tmp_path, monkeypatch, **env):
     import app  # noqa: WPS433 - imported after env is set
 
     return TestClient(app.app, raise_server_exceptions=False), app
+
+
+def register(client, email="user@example.com", password="securepass123"):
+    r = client.post("/api/auth/register", json={"email": email, "password": password, "name": "Test User"})
+    assert r.status_code == 201, r.text
+    return r.json()["csrfToken"]
+
+
+def csrf_headers(token):
+    return {"x-csrf-token": token}
 
 
 @pytest.fixture()
@@ -63,8 +77,8 @@ def test_dev_cors_allows_localhost(client):
 
 def test_production_cors_only_allows_studio_domain(prod):
     client, _ = prod
-    ok = client.get("/api/health", headers={"Origin": "https://studio.algoliquid.com"})
-    assert ok.headers.get("access-control-allow-origin") == "https://studio.algoliquid.com"
+    ok = client.get("/api/health", headers={"Origin": "https://studio.algo-liquid.com"})
+    assert ok.headers.get("access-control-allow-origin") == "https://studio.algo-liquid.com"
     bad = client.get("/api/health", headers={"Origin": "http://localhost:3000"})
     assert "access-control-allow-origin" not in bad.headers
     pre = client.options("/api/render", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "POST"})
@@ -81,21 +95,142 @@ def test_allowed_origins_are_configurable(tmp_path, monkeypatch):
 def test_production_hides_docs_paths_and_project_storage(prod):
     client, _ = prod
     assert client.get("/api/docs").status_code == 404
-    assert client.get("/api/projects").status_code == 404
+    assert client.get("/api/projects").status_code == 401
     health = client.get("/api/health").json()
-    assert health["projectStorage"] is False and isinstance(health["ffmpeg"], bool)
+    assert health["projectStorage"] is True and health["authentication"] is True and isinstance(health["ffmpeg"], bool)
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/render", {"plan": PLAN}),
+        ("/api/voice", {"text": "hello", "voice": "en-US-GuyNeural"}),
+        ("/api/director/understand", {"prompt": "make a trading video"}),
+    ],
+)
+def test_production_protects_expensive_endpoints(prod, path, body):
+    client, _ = prod
+    assert client.post(path, json=body).status_code == 401
 
 
 def test_project_roundtrip(client):
+    csrf = register(client)
     doc = {"schema": "tradeanim.project", "version": 1, "id": "prj_test", "name": "T", "settings": {"aspect": "16:9", "duration": 5}}
-    r = client.put("/api/projects/prj_test", json=doc)
-    assert r.status_code == 200 and r.json()["path"] == "workspace/projects/prj_test.json"
+    r = client.put("/api/projects/prj_test", json=doc, headers=csrf_headers(csrf))
+    assert r.status_code == 200 and r.json()["path"] == "cloud"
     assert [p["id"] for p in client.get("/api/projects").json()] == ["prj_test"]
     assert client.get("/api/projects/prj_test").json()["name"] == "T"
-    assert client.put("/api/projects/bad", json={"nope": 1}).status_code == 422
+    assert client.put("/api/projects/bad", json={"nope": 1}, headers=csrf_headers(csrf)).status_code == 422
     assert client.get("/api/projects/..%2Fsecrets").status_code in (400, 404)
-    client.delete("/api/projects/prj_test")
+    client.delete("/api/projects/prj_test", headers=csrf_headers(csrf))
     assert client.get("/api/projects").json() == []
+
+
+def test_accounts_sessions_csrf_and_project_isolation(client):
+    csrf = register(client, "one@example.com")
+    assert client.get("/api/auth/me").json()["user"]["email"] == "one@example.com"
+    doc = {"schema": "tradeanim.project", "version": 1, "id": "private", "name": "Private", "updatedAt": "2026-10-04", "settings": {"aspect": "9:16", "duration": 20}}
+    assert client.put("/api/projects/private", json=doc).status_code == 403
+    assert client.put("/api/projects/different", json=doc, headers=csrf_headers(csrf)).status_code == 422
+    assert client.put("/api/projects/private", json=doc, headers=csrf_headers(csrf)).status_code == 200
+    assert client.post("/api/auth/logout", headers=csrf_headers(csrf)).status_code == 200
+    csrf2 = register(client, "two@example.com")
+    assert client.get("/api/projects/private").status_code == 404
+    assert client.get("/api/projects").json() == []
+    assert client.post("/api/auth/logout", headers=csrf_headers(csrf2)).status_code == 200
+
+
+def test_login_rejects_bad_password_and_duplicate_account(client):
+    register(client)
+    assert client.post("/api/auth/login", json={"email": "user@example.com", "password": "wrongpass123"}).status_code == 401
+    assert client.post("/api/auth/register", json={"email": "USER@example.com", "password": "securepass123", "name": "Again"}).status_code == 409
+
+
+@pytest.mark.parametrize("email", ["missing-at.example.com", "two@@example.com", "a@missingdot", "a@.example.com", "a@example..com"])
+def test_registration_rejects_malformed_email(client, email):
+    assert client.post("/api/auth/register", json={"email": email, "password": "securepass123", "name": "User"}).status_code == 422
+
+
+def test_email_verification_is_one_time(client):
+    import app
+
+    register(client)
+    user = app.STORE.user_by_email("user@example.com")
+    assert user and user.verified is False
+    token = app.STORE.issue_action(user.id, "verify", 60)
+    r = client.post("/api/auth/email/verify/confirm", json={"token": token})
+    assert r.status_code == 200
+    assert client.post("/api/auth/email/verify/confirm", json={"token": token}).status_code == 400
+    assert client.get("/api/auth/me").json()["user"]["verified"] is True
+    expired = app.STORE.issue_action(user.id, "verify", -1)
+    assert client.post("/api/auth/email/verify/confirm", json={"token": expired}).status_code == 400
+
+
+def test_password_reset_revokes_sessions_and_token(client):
+    import app
+
+    register(client)
+    user = app.STORE.user_by_email("user@example.com")
+    token = app.STORE.issue_action(user.id, "reset", 60)
+    r = client.post("/api/auth/password/reset", json={"token": token, "password": "newsecure123"})
+    assert r.status_code == 200
+    assert client.get("/api/auth/me").status_code == 401
+    assert client.post("/api/auth/password/reset", json={"token": token, "password": "another123x"}).status_code == 400
+    assert client.post("/api/auth/login", json={"email": "user@example.com", "password": "securepass123"}).status_code == 401
+    assert client.post("/api/auth/login", json={"email": "user@example.com", "password": "newsecure123"}).status_code == 200
+
+
+def test_change_password_and_delete_account(client):
+    csrf = register(client)
+    assert client.post("/api/auth/password/change", json={"currentPassword": "wrong", "newPassword": "newsecure123"}, headers=csrf_headers(csrf)).status_code == 401
+    assert client.post("/api/auth/password/change", json={"currentPassword": "securepass123", "newPassword": "newsecure123"}, headers=csrf_headers(csrf)).status_code == 200
+    login = client.post("/api/auth/login", json={"email": "user@example.com", "password": "newsecure123"})
+    csrf = login.json()["csrfToken"]
+    assert client.request("DELETE", "/api/auth/account", json={"password": "wrong"}, headers=csrf_headers(csrf)).status_code == 401
+    assert client.request("DELETE", "/api/auth/account", json={"password": "newsecure123"}, headers=csrf_headers(csrf)).status_code == 200
+    assert client.post("/api/auth/login", json={"email": "user@example.com", "password": "newsecure123"}).status_code == 401
+
+
+def test_forgot_password_does_not_reveal_accounts(client):
+    known = client.post("/api/auth/password/forgot", json={"email": "known@example.com"})
+    unknown = client.post("/api/auth/password/forgot", json={"email": "unknown@example.com"})
+    assert known.status_code == unknown.status_code == 200
+    assert known.json() == unknown.json()
+
+
+def test_verification_required_blocks_cloud_features(tmp_path, monkeypatch):
+    client, app = make_client(
+        tmp_path, monkeypatch, EMAIL_VERIFICATION_REQUIRED="true", SMTP_HOST="smtp.example", SMTP_FROM="studio@example.com",
+    )
+    monkeypatch.setattr(app, "send_action_email", lambda *args, **kwargs: None)
+    csrf = register(client)
+    assert client.get("/api/projects").status_code == 403
+    assert client.post("/api/director/understand", json={"prompt": "create a video"}, headers=csrf_headers(csrf)).status_code == 403
+    user = app.STORE.user_by_email("user@example.com")
+    token = app.STORE.issue_action(user.id, "verify", 60)
+    assert client.post("/api/auth/email/verify/confirm", json={"token": token}).status_code == 200
+    assert client.get("/api/projects").status_code == 200
+
+
+def test_production_health_fails_closed_without_email(prod):
+    client, _ = prod
+    r = client.get("/api/health")
+    assert r.status_code == 503 and r.json()["emailReady"] is False
+    assert client.post("/api/auth/register", json={"email": "user@example.com", "password": "securepass123", "name": "User"}).status_code == 503
+
+
+def test_director_endpoint_uses_structured_understanding(client, monkeypatch):
+    import app
+
+    csrf = register(client)
+
+    async def understood(prompt, overrides):
+        assert "اختبار" in prompt and overrides == {"aspect": "9:16"}
+        return {"style": "minimalExplainer", "direction": "neutral", "aspect": "9:16", "duration": 8, "symbol": "BTCUSDT", "language": "ar", "topic": "backtest", "includeRiskBlock": True, "includeDisclaimer": True, "creativeNotes": "مختصر"}
+
+    monkeypatch.setattr(app, "understand_director_brief", understood)
+    r = client.post("/api/director/understand", json={"prompt": "اشرح اختبار الاستراتيجية", "overrides": {"aspect": "9:16"}}, headers=csrf_headers(csrf))
+    assert r.status_code == 200 and r.json()["topic"] == "backtest"
 
 
 def test_errors_are_json_with_request_id(client):

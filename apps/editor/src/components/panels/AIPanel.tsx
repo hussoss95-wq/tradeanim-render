@@ -6,7 +6,7 @@ import { Sparkles } from "lucide-react";
 import { editor } from "@/state/store";
 import { playback } from "@/state/playback";
 import { Select } from "../ui";
-import { generateVoice, type VoiceId } from "@/lib/api";
+import { generateVoice, understandDirectorPrompt, type VoiceId } from "@/lib/api";
 import { addGeneratedAudio } from "@/lib/soundDesign";
 
 const EXAMPLES: { prompt: string; style: DirectorStyle }[] = [
@@ -31,14 +31,31 @@ export function AIPanel() {
   const run = async () => {
     setBusy(true);
     try {
+      setStatus("Understanding your brief…");
+      let resolved = brief;
+      let usedAI = false;
+      try {
+        const understood = await understandDirectorPrompt(prompt, { style, language });
+        resolved = {
+          ...brief,
+          ...understood,
+          prompt,
+          direction: understood.direction === "neutral" ? brief.direction : understood.direction,
+          seed: brief.seed,
+        };
+        usedAI = true;
+      } catch {
+        // The deterministic parser keeps the Director useful offline or when
+        // the model provider is temporarily unavailable.
+      }
       setStatus("Building script and scenes…");
-      const res = await templateDirector.generate(brief);
+      const res = await templateDirector.generate(resolved);
       let voiceDataUrl: string | undefined;
       let voiceFailed = false;
       if (voice !== "none") {
         setStatus("Generating AI voice-over…");
         try {
-          voiceDataUrl = await generateVoice(buildDirectorContent(brief).narration, voice);
+          voiceDataUrl = await generateVoice(buildDirectorContent(resolved).narration, voice);
         } catch {
           voiceFailed = true;
         }
@@ -48,7 +65,8 @@ export function AIPanel() {
       editor().loadProject(project, { keepHistory: true });
       setStory(res.storyboard);
       playback().setTime(0);
-      editor().toast(voiceFailed ? "Video created with SFX — voice service was unavailable" : "Full video created — press Space to play", voiceFailed ? "info" : "success");
+      const engine = usedAI ? "AI-understood" : "offline parser";
+      editor().toast(voiceFailed ? `Video created (${engine}) — voice service was unavailable` : `Full video created · ${engine}`, voiceFailed ? "info" : "success");
     } catch (err) {
       editor().toast(`Director failed: ${(err as Error).message}`, "error");
     } finally {
