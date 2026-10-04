@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { applyAnimatedCaptions, buildDirectorContent, parseBrief, templateDirector, type DirectorLanguage, type DirectorStyle, type StoryBeat } from "@tradeanim/editor-core";
-import { Sparkles } from "lucide-react";
+import { Play, Sparkles } from "lucide-react";
 import { editor } from "@/state/store";
 import { playback } from "@/state/playback";
-import { Select } from "../ui";
+import { Row, Select, Slider } from "../ui";
 import { generateVoice, type VoiceId } from "@/lib/api";
 import { addGeneratedAudio } from "@/lib/soundDesign";
 
@@ -22,6 +22,9 @@ export function AIPanel() {
   const [style, setStyle] = useState<DirectorStyle>("minimalExplainer");
   const [language, setLanguage] = useState<DirectorLanguage>("ar");
   const [voice, setVoice] = useState<VoiceId | "none">("ar-IQ-BasselNeural");
+  const [voiceRate, setVoiceRate] = useState(4);
+  const [voicePitch, setVoicePitch] = useState(0);
+  const [previewing, setPreviewing] = useState(false);
   const [includeSfx, setIncludeSfx] = useState(true);
   const [includeMusic, setIncludeMusic] = useState(true);
   const [animatedCaptions, setAnimatedCaptions] = useState(true);
@@ -41,7 +44,7 @@ export function AIPanel() {
       if (voice !== "none") {
         setStatus("Generating AI voice-over…");
         try {
-          voiceDataUrl = await generateVoice(buildDirectorContent(brief).narration, voice);
+          voiceDataUrl = await generateVoice(buildDirectorContent(brief).narration, voice, { rate: voiceRate, pitch: voicePitch });
         } catch {
           voiceFailed = true;
         }
@@ -58,6 +61,22 @@ export function AIPanel() {
     } finally {
       setBusy(false);
       setStatus("");
+    }
+  };
+
+  const previewVoice = async () => {
+    if (voice === "none" || previewing) return;
+    setPreviewing(true);
+    try {
+      const sample = language === "ar"
+        ? "في هذا الفيديو سنختبر الاستراتيجية خطوة بخطوة، ونراجع النتائج بوضوح."
+        : "In this video, we will test the strategy step by step and review the results clearly.";
+      const src = await generateVoice(sample, voice, { rate: voiceRate, pitch: voicePitch });
+      await new Audio(src).play();
+    } catch (err) {
+      editor().toast(`Voice preview failed: ${(err as Error).message}`, "error");
+    } finally {
+      setPreviewing(false);
     }
   };
 
@@ -88,8 +107,14 @@ export function AIPanel() {
           <Select<VoiceId | "none">
             value={voice}
             options={language === "ar" ? [
-              { value: "ar-IQ-BasselNeural", label: "Iraqi male" },
-              { value: "ar-SA-ZariyahNeural", label: "Arabic female" },
+              { value: "ar-IQ-BasselNeural", label: "Iraqi · Bassel" },
+              { value: "ar-IQ-RanaNeural", label: "Iraqi · Rana" },
+              { value: "ar-SA-HamedNeural", label: "Saudi · Hamed" },
+              { value: "ar-SA-ZariyahNeural", label: "Saudi · Zariyah" },
+              { value: "ar-EG-ShakirNeural", label: "Egyptian · Shakir" },
+              { value: "ar-EG-SalmaNeural", label: "Egyptian · Salma" },
+              { value: "ar-AE-HamdanNeural", label: "Emirati · Hamdan" },
+              { value: "ar-AE-FatimaNeural", label: "Emirati · Fatima" },
               { value: "none", label: "No voice" },
             ] : [
               { value: "en-US-GuyNeural", label: "English male" },
@@ -98,6 +123,20 @@ export function AIPanel() {
             ]}
             onChange={setVoice}
           />
+        </div>
+        <div className="voice-studio">
+          <div className="voice-studio-head">
+            <span>Voice Studio</span>
+            <button className="btn tiny" disabled={voice === "none" || previewing} onClick={previewVoice} type="button">
+              <Play size={11} /> {previewing ? "Loading…" : "Preview"}
+            </button>
+          </div>
+          <Row label={`Pace ${voiceRate >= 0 ? "+" : ""}${voiceRate}%`}>
+            <Slider value={voiceRate} min={-25} max={50} step={1} onChange={setVoiceRate} />
+          </Row>
+          <Row label={`Tone ${voicePitch >= 0 ? "+" : ""}${voicePitch}Hz`}>
+            <Slider value={voicePitch} min={-10} max={10} step={1} onChange={setVoicePitch} />
+          </Row>
         </div>
         <label className="check-row">
           <input type="checkbox" checked={includeSfx} onChange={(e) => setIncludeSfx(e.target.checked)} />
