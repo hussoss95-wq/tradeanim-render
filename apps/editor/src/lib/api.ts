@@ -99,13 +99,28 @@ export async function apiDeleteProject(id: string): Promise<void> {
   await fetch(apiUrl(`/api/projects/${encodeURIComponent(id)}`), { method: "DELETE" });
 }
 
-export type VoiceId = "ar-IQ-BasselNeural" | "ar-SA-ZariyahNeural" | "en-US-GuyNeural" | "en-US-JennyNeural";
+export type VoiceId =
+  | "ar-IQ-BasselNeural"
+  | "ar-IQ-RanaNeural"
+  | "ar-SA-HamedNeural"
+  | "ar-SA-ZariyahNeural"
+  | "ar-EG-ShakirNeural"
+  | "ar-EG-SalmaNeural"
+  | "ar-AE-HamdanNeural"
+  | "ar-AE-FatimaNeural"
+  | "en-US-GuyNeural"
+  | "en-US-JennyNeural";
 
-export async function generateVoice(text: string, voice: VoiceId): Promise<string> {
+export interface VoiceOptions {
+  rate?: number;
+  pitch?: number;
+}
+
+export async function generateVoice(text: string, voice: VoiceId, options: VoiceOptions = {}): Promise<string> {
   const r = await fetch(apiUrl("/api/voice"), {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, voice }),
+    body: JSON.stringify({ text, voice, rate: options.rate ?? 0, pitch: options.pitch ?? 0 }),
   });
   if (!r.ok) {
     let message = `Voice service error (${r.status})`;
