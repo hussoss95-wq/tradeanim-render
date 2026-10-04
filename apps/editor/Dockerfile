@@ -1,8 +1,8 @@
 # AlgoLiquid Studio web editor (Next.js standalone server).
 # Build from the repository root (NEXT_PUBLIC_* are baked in at build time):
 #   docker build -f apps/editor/Dockerfile \
-#     --build-arg NEXT_PUBLIC_API_URL=https://api.studio.algoliquid.com \
-#     --build-arg NEXT_PUBLIC_APP_URL=https://studio.algoliquid.com \
+#     --build-arg NEXT_PUBLIC_API_URL=https://api.studio.algo-liquid.com \
+#     --build-arg NEXT_PUBLIC_APP_URL=https://studio.algo-liquid.com \
 #     -t algoliquid-studio-web .
 FROM node:22-alpine AS build
 WORKDIR /repo

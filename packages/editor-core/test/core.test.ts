@@ -176,6 +176,11 @@ describe("director + render plan", () => {
     expect(copy).toContain("١٠٠ صفقة");
     expect(validateProject(p)).toEqual([]);
   });
+  it("understands natural Arabic variants, masculine adjectives and tanween", () => {
+    const brief = parseBrief("فيديو عمودي نظيف بالعربية يشرح اختبار الاستراتيجية خلال 6 ثوانٍ");
+    expect(brief).toMatchObject({ style: "minimalExplainer", aspect: "9:16", duration: 8, language: "ar", topic: "backtest" });
+    expect(buildMinimalExplainerScenario(brief).project.name).toContain("باك تيست");
+  });
   it("builds a scene with structure detected from the candles", () => {
     const p = demo();
     const kinds = p.objects.map((o) => o.kind);

@@ -1,6 +1,6 @@
 # AlgoLiquid Studio — architecture
 
-Product: **AlgoLiquid Studio** (studio.algoliquid.com). The rendering engine keeps its
+Product: **AlgoLiquid Studio** (studio.algo-liquid.com). The rendering engine keeps its
 package name, `tradeanim`. Deployment topology: see [`DEPLOYMENT.md`](../DEPLOYMENT.md).
 
 ```
@@ -59,12 +59,11 @@ the small evaluation layer: easing, `eval_anim`, `candle_reveal` and
 - **Camera:** base state plus keyframes `{time, state{cx,cy,span,priceSpan},
   easing, follow}`. Spans interpolate in log space so zooms feel linear. In
   Camera view, stage pan and zoom auto-key at the playhead.
-- **Persistence:** browser autosave (localStorage), Save to
-  `workspace/projects/*.json` through the API (falling back to a browser
-  library), and JSON import/export. `migrateProject` upgrades older schema
-  versions.
+- **Persistence:** browser autosave (localStorage), authenticated per-user
+  cloud projects through the API (falling back to a browser library), and JSON
+  import/export. `migrateProject` upgrades older schema versions.
 
-## AI Director (prepared, not complete)
+## AI Director
 
 `packages/editor-core/src/director` defines the contract:
 
@@ -73,18 +72,37 @@ interface DirectorEngine { generate(brief: DirectorBrief): Promise<DirectorResul
 DirectorResult = { project, storyboard, commands?, engine }
 ```
 
-Today `templateDirector` parses the prompt (direction, aspect, duration,
-symbol, which concepts to include). It then generates candles, detects the
+`POST /api/director/understand` uses a model with a strict JSON schema to
+understand Arabic/English intent (topic, direction, aspect, duration, symbol,
+and concepts). No model output is executed. The constrained brief is passed to
+`templateDirector`, which generates candles and detects the
 real structure on them (equal highs/lows, sweep, CISD level, FVG, retrace),
 and places SMC objects, captions, a short/long position, camera keyframes and
-storyboard beats.
+storyboard beats. If the provider is unavailable, the improved offline parser
+keeps generation available.
 
-An LLM engine plugs into the same interface. It can emit either a whole
-project or a list of `EditorCommand`s, using each `ObjectDef.description` and
-`fields` as tool documentation. The pipeline runs headless:
+The pipeline also runs headless:
 `npm run plan -- --prompt "..." --out plan.json` produces a render plan
 without a browser, and `POST /api/render` turns it into an MP4. Narration,
 SFX and captions slot into the existing audio and text tracks.
+
+## Accounts and cloud projects
+
+- Passwords use PBKDF2-SHA256 with unique salts.
+- Sessions are opaque random tokens; only their SHA-256 digests are stored.
+- The session cookie is HttpOnly/Secure in production and mutations require a
+  separate CSRF token.
+- Email verification and password-reset links use short-lived, single-use
+  random tokens; only SHA-256 token digests are persisted. Password changes
+  and resets revoke every existing session for the account.
+- Password-reset requests return the same response for known and unknown
+  addresses, reducing account-enumeration leakage. Users can permanently
+  delete their account and cloud projects from account settings.
+- Cloud projects are keyed by both user id and project id, so accounts cannot
+  read or overwrite one another's work.
+- SQLite/WAL runs on the render service's persistent volume while the API is a
+  single instance. The narrow Store boundary supports a later Postgres move
+  when rendering becomes horizontally scalable.
 
 ## Engine changes (backward compatible)
 

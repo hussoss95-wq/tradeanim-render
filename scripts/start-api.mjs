@@ -1,6 +1,6 @@
 // Production-mode render API (cross-platform equivalent of services/render-api/start.sh).
 // Uses the project .venv when present, otherwise the system Python.
-//   APP_ENV=production PORT=8000 ALLOWED_ORIGINS=https://studio.algoliquid.com npm run start:api
+//   APP_ENV=production PORT=8000 ALLOWED_ORIGINS=https://studio.algo-liquid.com npm run start:api
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { ROOT, systemPython, venvPython } from "./python-env.mjs";

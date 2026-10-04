@@ -38,10 +38,13 @@ export interface DirectorBrief {
   include: { sweep: boolean; cisd: boolean; fvg: boolean; orderBlock: boolean; position: boolean; captions: boolean };
   seed: number;
   language: DirectorLanguage;
+  topic?: DirectorTopic;
+  creativeNotes?: string;
 }
 
 export type DirectorStyle = "cinematic" | "minimalExplainer";
 export type DirectorLanguage = "ar" | "en";
+export type DirectorTopic = "backtest" | "risk" | "candleClose" | "liquiditySweep" | "smcSetup" | "custom";
 
 export interface DirectorContent {
   projectName: string;
@@ -82,14 +85,18 @@ const SYMBOLS: Record<string, { base: number; height: number; tf: string }> = {
 
 export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {}): DirectorBrief {
   const p = prompt.toLowerCase();
-  const style: DirectorStyle = /minimal|explainer|clean|white background|no grid|reference|educational|مينيمال|تعليمي|نظيفة|بدون شبكة/.test(p) ? "minimalExplainer" : "cinematic";
+  const style: DirectorStyle = /minimal|explainer|clean|white background|no grid|reference|educational|مينيمال|تعليم|نظيف|بيضاء|أبيض|ابيض|بدون شبكة/.test(p) ? "minimalExplainer" : "cinematic";
   const direction = /bull|long|buy|صاعد|صعود|شراء/.test(p) && !/bear|هابط|هبوط|بيع/.test(p) ? "bullish" : "bearish";
   const aspect: AspectRatio = /vertical|9:16|short|reel|tiktok|portrait|عمودي|طولي/.test(p) ? "9:16" : /square|1:1|مربع/.test(p) ? "1:1" : /4:5/.test(p) ? "4:5" : style === "minimalExplainer" ? "9:16" : "16:9";
-  const dm = p.match(/(\d{1,3})\s*-?\s*(s|sec|secs|second|seconds|ثانية|ثواني)/);
+  const dm = p.match(/(\d{1,3})\s*-?\s*(s|sec|secs|second|seconds|ثانية|ثوان(?:ي|ٍ|))/);
   const duration = dm ? Math.min(120, Math.max(8, Number(dm[1]))) : 20;
   const sm = prompt.toUpperCase().match(/\b(EURUSD|GBPUSD|XAUUSD|GOLD|BTCUSD|BTC|NQ|ES|US30)\b/);
   const symbol = sm ? ({ GOLD: "XAUUSD", BTC: "BTCUSD" } as Record<string, string>)[sm[1]] ?? sm[1] : "EURUSD";
   const mentionsAny = /fvg|fair value|cisd|order block|\bob\b|entry|sweep/.test(p);
+  const topic: DirectorTopic = /back\s*-?test|backtest|باك\s*تيست|اختبار\s*(خلفي|تاريخي|الاستراتيجية|استراتيجية)|تجربة الاستراتيجية/.test(p)
+    ? "backtest" : /risk|stop loss|position siz|مخاطر|وقف الخسارة|حجم الصفقة/.test(p)
+      ? "risk" : /candle close|wait for.*close|إغلاق الشمعة|اغلاق الشمعة/.test(p)
+        ? "candleClose" : /liquidity|sweep|سيولة|سحب/.test(p) ? "liquiditySweep" : "custom";
   return {
     prompt,
     style,
@@ -107,6 +114,7 @@ export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {
     },
     seed: 11,
     language: /[\u0600-\u06ff]/.test(prompt) ? "ar" : "en",
+    topic,
     ...overrides,
   };
 }
@@ -114,8 +122,8 @@ export function parseBrief(prompt: string, overrides: Partial<DirectorBrief> = {
 /** Creates the copy and voice-over script used by the full-video Director. */
 export function buildDirectorContent(brief: DirectorBrief): DirectorContent {
   const ar = brief.language === "ar";
-  const backtest = /back\s*-?test|backtest|باك\s*تيست|اختبار\s*(خلفي|تاريخي)/i.test(brief.prompt);
-  const risk = /risk|stop loss|position siz|مخاطر|وقف الخسارة|حجم الصفقة/i.test(brief.prompt);
+  const backtest = brief.topic === "backtest" || /back\s*-?test|backtest|باك\s*تيست|اختبار\s*(خلفي|تاريخي|الاستراتيجية|استراتيجية)/i.test(brief.prompt);
+  const risk = brief.topic === "risk" || /risk|stop loss|position siz|مخاطر|وقف الخسارة|حجم الصفقة/i.test(brief.prompt);
 
   if (backtest) {
     return ar
