@@ -93,7 +93,7 @@ export function AudioPanel() {
     <>
       <div className="pal-head">
         <h3>Audio</h3>
-        <p>Music, voice-over and SFX. Previewed in sync with the playhead and muxed into the exported MP4.</p>
+        <p>Music, voice-over and SFX. Voice Focus automatically lowers music while narration is playing, in preview and export.</p>
       </div>
       <div className="btn-row">
         <button
@@ -102,7 +102,7 @@ export function AudioPanel() {
             const a = await importAsset("audio");
             if (a) {
               const s = editor();
-              const o = insertObject("audio", { props: { assetId: a.id }, start: 0 });
+              const o = insertObject("audio", { props: { assetId: a.id, role: "music", ducking: true }, start: 0 });
               s.dispatch({ type: "objects/update", id: o.id, patch: { name: a.name, duration: s.project.settings.duration } });
             }
           }}
@@ -122,7 +122,7 @@ export function AudioPanel() {
         {!clips.length && <div className="muted pad">No audio clips.</div>}
       </div>
       <div className="pal-note">
-        AI Director can generate voice-over and transition SFX automatically. You can still add or replace any clip here ({assets.filter((a) => a.type === "audio").length} audio assets).
+        AI Director generates voice-over, an adaptive score and transition SFX automatically. Select any clip to change its role, level or Voice Focus setting ({assets.filter((a) => a.type === "audio").length} audio assets).
       </div>
     </>
   );

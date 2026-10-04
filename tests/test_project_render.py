@@ -80,6 +80,31 @@ def test_audio_clips_are_muxed(tmp_path):
 
 
 @pytest.mark.skipif(resolve_ffmpeg() is None, reason="ffmpeg not available")
+def test_voice_focus_ducks_music_and_exports(tmp_path):
+    import base64
+
+    ffmpeg = resolve_ffmpeg()
+    music = tmp_path / "music.wav"
+    voice = tmp_path / "voice.wav"
+    subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=110:duration=1", str(music)], check=True)
+    subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", str(voice)], check=True)
+    plan = json.loads(json.dumps(PLAN))
+    plan["settings"]["duration"] = 0.8
+    plan["assets"] = [
+        {"id": "music", "type": "audio", "name": "music.wav", "src": "data:audio/wav;base64," + base64.b64encode(music.read_bytes()).decode()},
+        {"id": "voice", "type": "audio", "name": "voice.wav", "src": "data:audio/wav;base64," + base64.b64encode(voice.read_bytes()).decode()},
+    ]
+    plan["audio"] = [
+        {"assetId": "music", "start": 0, "duration": 0.8, "volume": 0.3, "offset": 0, "role": "music", "ducking": True},
+        {"assetId": "voice", "start": 0.1, "duration": 0.6, "volume": 1, "offset": 0, "role": "voice", "ducking": True},
+    ]
+    out = tmp_path / "voice_focus.mp4"
+    render_plan(plan, str(out), width=160, height=90, fps=6, quality="draft")
+    info = subprocess.run([ffmpeg, "-hide_banner", "-i", str(out)], capture_output=True, text=True).stderr
+    assert out.stat().st_size > 0 and "Audio: aac" in info
+
+
+@pytest.mark.skipif(resolve_ffmpeg() is None, reason="ffmpeg not available")
 def test_image_assets_render(tmp_path):
     import base64
     import io

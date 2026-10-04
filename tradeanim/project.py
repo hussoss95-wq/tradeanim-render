@@ -901,7 +901,7 @@ def render_plan(
 
 
 def mux_audio(plan: dict, video_path: str, output_path: str, config: RenderConfig) -> None:
-    """Mix the plan's audio clips (start offset, trim, volume) under the rendered video."""
+    """Mix audio clips and duck music under narration when Voice Focus is enabled."""
     ffmpeg = resolve_ffmpeg(config.ffmpeg_path) or "ffmpeg"
     assets = {a["id"]: a for a in plan.get("assets", [])}
     clips = [a for a in plan.get("audio", []) if a["assetId"] in assets]
@@ -917,8 +917,27 @@ def mux_audio(plan: dict, video_path: str, output_path: str, config: RenderConfi
                 f"[{n + 1}:a]atrim=start={max(0.0, clip.get('offset', 0)):.3f}:duration={clip['duration']:.3f},"
                 f"asetpts=PTS-STARTPTS,volume={clip.get('volume', 1):.3f},adelay={delay}|{delay}[a{n}]"
             )
-        mix = "".join(f"[a{n}]" for n in range(len(clips)))
-        filters.append(f"{mix}amix=inputs={len(clips)}:normalize=0[aout]")
+        voice = [n for n, clip in enumerate(clips) if clip.get("role") == "voice" and clip.get("ducking", True)]
+        music = [n for n, clip in enumerate(clips) if clip.get("role") == "music" and clip.get("ducking", True)]
+        if voice and music:
+            voice_inputs = "".join(f"[a{n}]" for n in voice)
+            if len(voice) > 1:
+                filters.append(f"{voice_inputs}amix=inputs={len(voice)}:normalize=0[voicebus]")
+            else:
+                filters.append(f"[a{voice[0]}]anull[voicebus]")
+            filters.append("[voicebus]asplit=2[voicemix][voicekey]")
+            music_inputs = "".join(f"[a{n}]" for n in music)
+            if len(music) > 1:
+                filters.append(f"{music_inputs}amix=inputs={len(music)}:normalize=0[musicbus]")
+            else:
+                filters.append(f"[a{music[0]}]anull[musicbus]")
+            filters.append("[musicbus][voicekey]sidechaincompress=threshold=0.025:ratio=10:attack=18:release=420:makeup=1[duckedmusic]")
+            other = [n for n in range(len(clips)) if n not in voice and n not in music]
+            mix = "[duckedmusic][voicemix]" + "".join(f"[a{n}]" for n in other)
+            filters.append(f"{mix}amix=inputs={2 + len(other)}:normalize=0:dropout_transition=0[aout]")
+        else:
+            mix = "".join(f"[a{n}]" for n in range(len(clips)))
+            filters.append(f"{mix}amix=inputs={len(clips)}:normalize=0:dropout_transition=0[aout]")
         cmd = [ffmpeg, "-y", "-i", video_path, *inputs, "-filter_complex", ";".join(filters),
                "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                "-t", f"{plan['settings']['duration']:.3f}", output_path]

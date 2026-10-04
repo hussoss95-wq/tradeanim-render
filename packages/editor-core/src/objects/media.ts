@@ -96,11 +96,17 @@ export const audio: ObjectDef = {
   placement: "global",
   anchors: 0,
   icon: "audio",
-  defaults: () => ({ props: { assetId: "", volume: 1, offset: 0 }, animIn: { preset: "none" }, duration: 8 }),
+  defaults: () => ({ props: { assetId: "", volume: 1, offset: 0, role: "music", ducking: true }, animIn: { preset: "none" }, duration: 8 }),
   fields: [
     { key: "assetId", label: "Audio file", type: "asset" },
     { key: "volume", label: "Volume", type: "number", min: 0, max: 2, step: 0.05 },
     { key: "offset", label: "Trim start (s)", type: "number", min: 0, step: 0.1 },
+    { key: "role", label: "Audio role", type: "select", options: [
+      { value: "voice", label: "Voice-over" },
+      { value: "music", label: "Music" },
+      { value: "sfx", label: "Sound effect" },
+    ] },
+    { key: "ducking", label: "Voice focus", type: "bool" },
   ],
   compile: () => [],
 };

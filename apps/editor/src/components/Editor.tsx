@@ -269,11 +269,21 @@ function useAudioPreview() {
     let lastT = playback().time;
     return usePlayback.subscribe((pb) => {
       const objs = editor().project.objects;
+      const voiceActive = objs.some((o) =>
+        o.kind === "audio" &&
+        o.visible &&
+        o.props.role === "voice" &&
+        o.props.ducking !== false &&
+        pb.time >= o.start &&
+        pb.time < o.start + o.duration
+      );
       for (const [id, el] of els.current) {
         const o = objs.find((x) => x.id === id);
         if (!o) continue;
         const local = pb.time - o.start + Number(o.props.offset ?? 0);
         const inside = pb.time >= o.start && pb.time < o.start + o.duration && o.visible;
+        const baseVolume = Math.min(1, Math.max(0, Number(o.props.volume ?? 1)));
+        el.volume = o.props.role === "music" && o.props.ducking !== false && voiceActive ? baseVolume * 0.28 : baseVolume;
         if (pb.playing && inside) {
           if (el.paused) {
             el.currentTime = Math.max(0, local);

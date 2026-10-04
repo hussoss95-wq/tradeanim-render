@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { buildDirectorContent, parseBrief, templateDirector, type DirectorLanguage, type DirectorStyle, type StoryBeat } from "@tradeanim/editor-core";
+import { applyAnimatedCaptions, buildDirectorContent, parseBrief, templateDirector, type DirectorLanguage, type DirectorStyle, type StoryBeat } from "@tradeanim/editor-core";
 import { Sparkles } from "lucide-react";
 import { editor } from "@/state/store";
 import { playback } from "@/state/playback";
@@ -23,6 +23,9 @@ export function AIPanel() {
   const [language, setLanguage] = useState<DirectorLanguage>("ar");
   const [voice, setVoice] = useState<VoiceId | "none">("ar-IQ-BasselNeural");
   const [includeSfx, setIncludeSfx] = useState(true);
+  const [includeMusic, setIncludeMusic] = useState(true);
+  const [animatedCaptions, setAnimatedCaptions] = useState(true);
+  const [voiceFocus, setVoiceFocus] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [story, setStory] = useState<StoryBeat[] | null>(null);
@@ -44,7 +47,8 @@ export function AIPanel() {
         }
       }
       setStatus("Adding sound design…");
-      const project = addGeneratedAudio(res.project, res.storyboard, voiceDataUrl, includeSfx);
+      const captioned = applyAnimatedCaptions(res.project, { enabled: animatedCaptions, maxWords: language === "ar" ? 3 : 4 });
+      const project = addGeneratedAudio(captioned, res.storyboard, voiceDataUrl, { includeSfx, includeMusic, voiceFocus, style });
       editor().loadProject(project, { keepHistory: true });
       setStory(res.storyboard);
       playback().setTime(0);
@@ -98,6 +102,18 @@ export function AIPanel() {
         <label className="check-row">
           <input type="checkbox" checked={includeSfx} onChange={(e) => setIncludeSfx(e.target.checked)} />
           <span>Add automatic sound effects</span>
+        </label>
+        <label className="check-row">
+          <input type="checkbox" checked={includeMusic} onChange={(e) => setIncludeMusic(e.target.checked)} />
+          <span>Add adaptive background score</span>
+        </label>
+        <label className="check-row">
+          <input type="checkbox" checked={voiceFocus} onChange={(e) => setVoiceFocus(e.target.checked)} />
+          <span>Voice Focus · automatically duck music</span>
+        </label>
+        <label className="check-row">
+          <input type="checkbox" checked={animatedCaptions} onChange={(e) => setAnimatedCaptions(e.target.checked)} />
+          <span>Animated phrase captions</span>
         </label>
         <textarea className="txt prompt" rows={5} value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
         <div className="brief">

@@ -57,7 +57,7 @@ export interface RenderPlan {
   camera: { base: CameraState; keyframes: CameraKeyframe[] };
   objects: PlanObject[];
   assets: { id: string; type: string; name: string; src: string }[];
-  audio: { assetId: string; start: number; duration: number; volume: number; offset: number }[];
+  audio: { assetId: string; start: number; duration: number; volume: number; offset: number; role: string; ducking: boolean }[];
 }
 
 export function objectCenter(project: Project, id: string): { t: number; p: number } | null {
@@ -86,7 +86,15 @@ export function compileRenderPlan(project: Project): RenderPlan {
       const assetId = String(o.props.assetId ?? "");
       if (assetId) {
         usedAssets.add(assetId);
-        audio.push({ assetId, start: o.start, duration: o.duration, volume: Number(o.props.volume ?? 1), offset: Number(o.props.offset ?? 0) });
+        audio.push({
+          assetId,
+          start: o.start,
+          duration: o.duration,
+          volume: Number(o.props.volume ?? 1),
+          offset: Number(o.props.offset ?? 0),
+          role: String(o.props.role ?? "music"),
+          ducking: Boolean(o.props.ducking ?? true),
+        });
       }
       continue;
     }

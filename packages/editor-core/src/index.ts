@@ -12,3 +12,4 @@ export * from "./candles/generators";
 export * from "./candles/import";
 export * from "./director/analysis";
 export * from "./director/index";
+export * from "./director/captionDesign";

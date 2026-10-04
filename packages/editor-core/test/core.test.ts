@@ -4,6 +4,7 @@ import { createEmptyProject, migrateProject, validateProject, PROJECT_SCHEMA_VER
 import {
   ALL_DEFS,
   applyCommand,
+  applyAnimatedCaptions,
   buildSweepScenario,
   buildMinimalExplainerScenario,
   cameraPreset,
@@ -175,6 +176,16 @@ describe("director + render plan", () => {
     expect(p.name).toContain("باك تيست");
     expect(copy).toContain("١٠٠ صفقة");
     expect(validateProject(p)).toEqual([]);
+  });
+  it("turns long captions into timed editable phrase clips", () => {
+    const p = buildMinimalExplainerScenario(parseBrief("Create a 30-second vertical clean backtest explainer")).project;
+    const before = p.objects.filter((o) => o.kind === "caption").length;
+    const animated = applyAnimatedCaptions(p, { maxWords: 3 });
+    const captions = animated.objects.filter((o) => o.kind === "caption");
+    expect(captions.length).toBeGreaterThan(before);
+    expect(captions.every((o) => String(o.props.text).trim().split(/\s+/).length <= 3)).toBe(true);
+    expect(captions.every((o) => o.animIn.preset === "pop")).toBe(true);
+    expect(validateProject(animated)).toEqual([]);
   });
   it("builds a scene with structure detected from the candles", () => {
     const p = demo();
