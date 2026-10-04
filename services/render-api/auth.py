@@ -21,7 +21,6 @@ from typing import Any, Optional
 
 from fastapi import HTTPException, Request, Response
 
-EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 SESSION_COOKIE = "algoliquid_session"
 CSRF_COOKIE = "algoliquid_csrf"
 PBKDF2_ROUNDS = 310_000
@@ -263,7 +262,11 @@ class Store:
 
 def normalize_email(value: str) -> str:
     email = value.strip().lower()
-    if len(email) > 254 or not EMAIL_RE.match(email):
+    if len(email) < 3 or len(email) > 254 or any(char.isspace() for char in email) or email.count("@") != 1:
+        raise HTTPException(422, "Enter a valid email address")
+    local, domain = email.split("@", 1)
+    labels = domain.split(".")
+    if not local or len(local) > 64 or len(labels) < 2 or any(not label or len(label) > 63 for label in labels):
         raise HTTPException(422, "Enter a valid email address")
     return email
 

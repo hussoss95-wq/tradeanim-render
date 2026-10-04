@@ -146,6 +146,11 @@ def test_login_rejects_bad_password_and_duplicate_account(client):
     assert client.post("/api/auth/register", json={"email": "USER@example.com", "password": "securepass123", "name": "Again"}).status_code == 409
 
 
+@pytest.mark.parametrize("email", ["missing-at.example.com", "two@@example.com", "a@missingdot", "a@.example.com", "a@example..com"])
+def test_registration_rejects_malformed_email(client, email):
+    assert client.post("/api/auth/register", json={"email": email, "password": "securepass123", "name": "User"}).status_code == 422
+
+
 def test_email_verification_is_one_time(client):
     import app
 

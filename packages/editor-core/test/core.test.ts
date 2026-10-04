@@ -181,6 +181,10 @@ describe("director + render plan", () => {
     expect(brief).toMatchObject({ style: "minimalExplainer", aspect: "9:16", duration: 8, language: "ar", topic: "backtest" });
     expect(buildMinimalExplainerScenario(brief).project.name).toContain("باك تيست");
   });
+  it("parses bounded duration and candle-close language without expensive regexes", () => {
+    expect(parseBrief("wait for confirmation and then close the candle, 45 seconds")).toMatchObject({ duration: 45, topic: "candleClose" });
+    expect(parseBrief(`${"wait for ".repeat(800)}close`)).toMatchObject({ topic: "candleClose", duration: 20 });
+  });
   it("builds a scene with structure detected from the candles", () => {
     const p = demo();
     const kinds = p.objects.map((o) => o.kind);
