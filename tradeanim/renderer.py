@@ -215,7 +215,7 @@ class Renderer:
             return
 
         ffmpeg_cmd = [
-            resolve_ffmpeg(c.ffmpeg_path) or "ffmpeg", "-y",
+            resolve_ffmpeg(c.ffmpeg_path) or "ffmpeg", "-y", "-loglevel", "error",
             "-f", "rawvideo", "-vcodec", "rawvideo",
             "-s", f"{c.width}x{c.height}",
             "-pix_fmt", "rgb24",
@@ -225,6 +225,9 @@ class Renderer:
             "-pix_fmt", c.pixel_format,
             "-crf", str(c.crf),
             "-preset", c.preset,
+            # Keep x264 inside small cloud-container memory limits. Auto thread
+            # selection can allocate many full-HD frame buffers and get killed.
+            "-threads", "2",
             "-movflags", "+faststart",
             output_path,
         ]
@@ -232,7 +235,7 @@ class Renderer:
         try:
             proc = subprocess.Popen(
                 ffmpeg_cmd, stdin=subprocess.PIPE,
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
             )
         except FileNotFoundError:
             print("ERROR: ffmpeg not found. Install it with: brew install ffmpeg")
@@ -263,7 +266,13 @@ class Renderer:
                     pass
 
             frame = self._post_process(frame)
-            proc.stdin.write(frame.tobytes())
+            try:
+                proc.stdin.write(frame.tobytes())
+            except BrokenPipeError as exc:
+                proc.stdin.close()
+                details = (proc.stderr.read() if proc.stderr else b"").decode("utf-8", errors="replace").strip()
+                proc.wait()
+                raise RuntimeError(f"ffmpeg stopped at frame {frame_idx + 1}: {details[-1200:] or 'encoder process exited'}") from exc
             if on_progress is not None:
                 on_progress(frame_idx + 1, total_frames)
 
@@ -283,11 +292,12 @@ class Renderer:
 
         proc.stdin.close()
         proc.wait()
+        details = (proc.stderr.read() if proc.stderr else b"").decode("utf-8", errors="replace").strip()
         elapsed = _time.monotonic() - t_start
         el_m, el_s = divmod(int(elapsed), 60)
 
         if proc.returncode != 0:
-            print(f"\nffmpeg exited with code {proc.returncode}")
+            raise RuntimeError(f"ffmpeg exited with code {proc.returncode}: {details[-1200:]}")
         else:
             print(f"\r  [{'█' * bar_w}] 100.0%  "
                   f"{total_frames}/{total_frames}  "
